@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 
 type TabKey = "transfer" | "history";
@@ -45,6 +46,7 @@ function isTouchLikeDevice() {
 }
 
 export function TransferApp({ initialAuthorized }: TransferAppProps) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [password, setPassword] = useState("");
@@ -75,7 +77,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
     let cancelled = false;
 
-    fetch("/api/images", { cache: "no-store" })
+    fetch("/api/images", { cache: "no-store", credentials: "same-origin" })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("load failed");
@@ -112,6 +114,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
         },
@@ -125,8 +128,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       }
 
       setPassword("");
-      setHistoryLoading(true);
-      setAuthorized(true);
+      router.refresh();
+      window.location.reload();
     } catch {
       setLoginError("网络异常，请稍后重试。");
     } finally {
@@ -137,6 +140,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   async function handleLogout() {
     await fetch("/api/auth/logout", {
       method: "POST",
+      credentials: "same-origin",
     });
 
     setAuthorized(false);
@@ -215,7 +219,10 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   async function refreshImages() {
-    const response = await fetch("/api/images", { cache: "no-store" });
+    const response = await fetch("/api/images", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
 
     if (!response.ok) {
       throw new Error("refresh failed");
@@ -249,6 +256,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         `/api/images/${encodeURIComponent(image.name)}`,
         {
           method: "DELETE",
+          credentials: "same-origin",
         },
       );
 

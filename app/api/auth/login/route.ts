@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { AUTH_COOKIE_NAME, getSessionCookieValue, verifyPassword } from "@/app/_lib/auth";
@@ -18,8 +17,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE_NAME, getSessionCookieValue(), {
+  const response = NextResponse.json({ ok: true });
+  response.cookies.set(AUTH_COOKIE_NAME, getSessionCookieValue(), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -27,5 +26,5 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 24 * 30,
   });
 
-  return NextResponse.json({ ok: true });
+  return response;
 }
