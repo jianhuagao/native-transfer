@@ -1,0 +1,55 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+import { isAuthorized } from "@/app/_lib/auth";
+import { listImages, readImage, removeImage } from "@/app/_lib/storage";
+
+export const runtime = "nodejs";
+
+function unauthorized() {
+  return NextResponse.json({ error: "未授权" }, { status: 401 });
+}
+
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ name: string }> }
+) {
+  if (!(await isAuthorized())) {
+    return unauthorized();
+  }
+
+  const { name } = await context.params;
+
+  try {
+    const { buffer, fileName, mimeType } = await readImage(name);
+    const disposition = request.nextUrl.searchParams.get("download")
+      ? `attachment; filename="${encodeURIComponent(fileName)}"`
+      : `inline; filename="${encodeURIComponent(fileName)}"`;
+
+    return new NextResponse(buffer, {
+      headers: {
+        "Content-Type": mimeType,
+        "Content-Length": buffer.byteLength.toString(),
+        "Content-Disposition": disposition,
+        "Cache-Control": "private, no-store, no-cache, must-revalidate",
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "图片不存在" }, { status: 404 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ name: string }> }
+) {
+  if (!(await isAuthorized())) {
+    return unauthorized();
+  }
+
+  const { name } = await context.params;
+  await removeImage(name);
+
+  const images = await listImages();
+
+  return NextResponse.json({ ok: true, images });
+}
