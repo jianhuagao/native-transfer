@@ -4,6 +4,10 @@
 
 它提供一个带密码保护的 Web 界面，支持上传原图、查看历史图片、复制链接、下载原图和删除文件。图片存储基于 Vercel Blob，前端使用 Next.js App Router 构建，适合部署成一个轻量的私有传图入口。
 
+![libran](./public/project/c1.jpg)
+![libran](./public/project/c2.jpg)
+![libran](./public/project/c3.jpg)
+
 ## 功能
 
 - 密码登录，未授权用户不能访问图片列表和原图下载
