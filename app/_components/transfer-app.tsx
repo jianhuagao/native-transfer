@@ -298,10 +298,12 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   async function handleCopyLink(image: StoredImage) {
+    const absoluteUrl = new URL(image.originalUrl, window.location.origin).toString();
+
     try {
-      await navigator.clipboard.writeText(image.originalUrl);
+      await navigator.clipboard.writeText(absoluteUrl);
     } catch {
-      window.prompt("复制链接", image.originalUrl);
+      window.prompt("复制链接", absoluteUrl);
     }
   }
 
