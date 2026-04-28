@@ -1,21 +1,5 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { del, get, list, put, type BlobAccessType } from "@vercel/blob";
 import path from "node:path";
-
-function resolveUploadDir() {
-  const customDir = process.env.UPLOAD_DIR?.trim();
-
-  if (customDir) {
-    return path.resolve(/* turbopackIgnore: true */ customDir);
-  }
-
-  if (process.env.VERCEL) {
-    return path.join("/tmp", "native-transfer", "uploads");
-  }
-
-  return path.join(process.cwd(), "storage", "uploads");
-}
-
-export const UPLOAD_DIR = resolveUploadDir();
 
 export type StoredImage = {
   id: string;
@@ -25,17 +9,6 @@ export type StoredImage = {
   uploadedAt: string;
   uploadedAtLabel: string;
   size: number;
-};
-
-const MIME_TYPES: Record<string, string> = {
-  ".avif": "image/avif",
-  ".gif": "image/gif",
-  ".heic": "image/heic",
-  ".heif": "image/heif",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
 };
 
 function pad(value: number) {
@@ -77,71 +50,88 @@ function sanitizeBaseName(name: string) {
     .toLowerCase();
 }
 
-export function getMimeType(fileName: string) {
-  return MIME_TYPES[path.extname(fileName).toLowerCase()] ?? "application/octet-stream";
+function getBlobAccess(): BlobAccessType {
+  const access = process.env.BLOB_ACCESS?.trim().toLowerCase();
+
+  if (access === "public" || access === "private") {
+    return access;
+  }
+
+  return "private";
 }
 
-export async function ensureUploadDir() {
-  await mkdir(UPLOAD_DIR, { recursive: true });
+function getBlobPrefix() {
+  return "uploads/";
+}
+
+function decodePathname(name: string) {
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
 }
 
 export async function saveUpload(file: File) {
-  await ensureUploadDir();
-
   const now = new Date();
   const originalName = file.name || "image";
   const extension = path.extname(originalName).toLowerCase() || ".jpg";
-  const baseName = sanitizeBaseName(path.basename(originalName, extension)) || "image";
-  const safeFileName = `${formatStamp(now)}-${baseName}${extension}`;
-  const filePath = path.join(UPLOAD_DIR, safeFileName);
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const baseName =
+    sanitizeBaseName(path.basename(originalName, extension)) || "image";
+  const pathname = `${getBlobPrefix()}${formatStamp(now)}-${baseName}${extension}`;
 
-  await writeFile(filePath, buffer);
+  const blob = await put(pathname, file, {
+    access: getBlobAccess(),
+    addRandomSuffix: false,
+    contentType: file.type || undefined,
+  });
 
-  return safeFileName;
+  return blob.pathname;
 }
 
 export async function listImages(): Promise<StoredImage[]> {
-  await ensureUploadDir();
-
-  const entries = await readdir(UPLOAD_DIR, { withFileTypes: true });
-  const files = await Promise.all(
-    entries
-      .filter((entry) => entry.isFile())
-      .map(async (entry) => {
-        const filePath = path.join(UPLOAD_DIR, entry.name);
-        const details = await stat(filePath);
-        const uploadedAt = details.birthtimeMs > 0 ? new Date(details.birthtimeMs) : details.mtime;
-
-        return {
-          id: entry.name,
-          name: entry.name,
-          url: `/api/images/${encodeURIComponent(entry.name)}`,
-          originalUrl: `/api/images/${encodeURIComponent(entry.name)}`,
-          uploadedAt: uploadedAt.toISOString(),
-          uploadedAtLabel: formatLabel(uploadedAt),
-          size: details.size,
-        } satisfies StoredImage;
-      })
-  );
-
-  return files.sort((left, right) => {
-    return new Date(right.uploadedAt).getTime() - new Date(left.uploadedAt).getTime();
+  const { blobs } = await list({
+    prefix: getBlobPrefix(),
+    limit: 1000,
   });
+
+  return blobs
+    .map((blob) => ({
+      id: blob.pathname,
+      name: path.basename(blob.pathname),
+      url: `/api/images/${encodeURIComponent(blob.pathname)}`,
+      originalUrl: `/api/images/${encodeURIComponent(blob.pathname)}`,
+      uploadedAt: blob.uploadedAt.toISOString(),
+      uploadedAtLabel: formatLabel(blob.uploadedAt),
+      size: blob.size,
+    }))
+    .sort((left, right) => {
+      return (
+        new Date(right.uploadedAt).getTime() -
+        new Date(left.uploadedAt).getTime()
+      );
+    });
 }
 
 export async function readImage(name: string) {
-  const filePath = path.join(UPLOAD_DIR, path.basename(name));
-  const buffer = await readFile(filePath);
+  const pathname = decodePathname(name);
+  const result = await get(pathname, {
+    access: getBlobAccess(),
+  });
+
+  if (!result || result.statusCode !== 200) {
+    throw new Error("Blob not found");
+  }
 
   return {
-    buffer,
-    fileName: path.basename(filePath),
-    mimeType: getMimeType(filePath),
+    stream: result.stream,
+    fileName: path.basename(result.blob.pathname),
+    mimeType: result.blob.contentType,
+    size: result.blob.size,
   };
 }
 
 export async function removeImage(name: string) {
-  const filePath = path.join(UPLOAD_DIR, path.basename(name));
-  await rm(filePath, { force: true });
+  const pathname = decodePathname(name);
+  await del(pathname);
 }

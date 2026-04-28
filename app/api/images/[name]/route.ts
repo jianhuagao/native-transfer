@@ -20,15 +20,15 @@ export async function GET(
   const { name } = await context.params;
 
   try {
-    const { buffer, fileName, mimeType } = await readImage(name);
+    const { stream, fileName, mimeType, size } = await readImage(name);
     const disposition = request.nextUrl.searchParams.get("download")
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
 
-    return new NextResponse(buffer, {
+    return new NextResponse(stream, {
       headers: {
         "Content-Type": mimeType,
-        "Content-Length": buffer.byteLength.toString(),
+        "Content-Length": size.toString(),
         "Content-Disposition": disposition,
         "Cache-Control": "private, no-store, no-cache, must-revalidate",
       },
