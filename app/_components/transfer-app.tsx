@@ -87,6 +87,8 @@ function buildUploadPath(fileName: string) {
 
 export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
+  const recentImageUrlRef = useRef<string | null>(null);
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -196,6 +198,41 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     inputRef.current?.click();
   }
 
+  function clearPreviewTimer() {
+    if (previewTimerRef.current !== null) {
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+  }
+
+  function commitRecentImage(previewUrl: string, fileName: string) {
+    setRecentImageUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+
+      recentImageUrlRef.current = previewUrl;
+      return previewUrl;
+    });
+    setRecentImageName(fileName);
+  }
+
+  function scheduleRecentImage(previewUrl: string, fileName: string) {
+    clearPreviewTimer();
+
+    const delay = isTouchLikeDevice() ? 260 : 0;
+
+    if (delay === 0) {
+      commitRecentImage(previewUrl, fileName);
+      return;
+    }
+
+    previewTimerRef.current = window.setTimeout(() => {
+      commitRecentImage(previewUrl, fileName);
+      previewTimerRef.current = null;
+    }, delay);
+  }
+
   function playSuccessConfetti(kind: ConfettiKind) {
     setConfettiKind(kind);
     setConfettiVisible(true);
@@ -227,15 +264,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       const previewUrl = URL.createObjectURL(file);
       setUploadProgress(100);
       setUploadStatus("传输完成");
-      setRecentImageUrl((current) => {
-        if (current) {
-          URL.revokeObjectURL(current);
-        }
-
-        return previewUrl;
-      });
-      setRecentImageName(file.name);
       playSuccessConfetti("upload");
+      scheduleRecentImage(previewUrl, file.name);
       await refreshImages();
     } catch (error) {
       const message =
@@ -266,6 +296,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   function handleContinueUpload() {
+    clearPreviewTimer();
     setUploadProgress(0);
     setUploadStatus("");
     setRecentImageUrl((current) => {
@@ -273,11 +304,23 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         URL.revokeObjectURL(current);
       }
 
+      recentImageUrlRef.current = null;
       return null;
     });
     setRecentImageName("");
     triggerPicker();
   }
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTimer();
+
+      if (recentImageUrlRef.current) {
+        URL.revokeObjectURL(recentImageUrlRef.current);
+        recentImageUrlRef.current = null;
+      }
+    };
+  }, []);
 
   async function handleDelete(image: StoredImage) {
     setDeletingId(image.id);
@@ -450,7 +493,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(89,168,255,0.18),transparent_28%),radial-gradient(circle_at_85%_12%,rgba(237,244,255,0.08),transparent_18%),radial-gradient(circle_at_20%_80%,rgba(50,110,255,0.16),transparent_26%),linear-gradient(180deg,#03060c_0%,#080b12_50%,#020304_100%)]" />
       <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-220 -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
 
-      <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-7xl flex-col rounded-[32px] border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
+      <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full flex-col rounded-[32px] border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
         <header className="mb-6 flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-[-0.05em] text-white sm:text-3xl">
@@ -670,8 +713,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                             src={image.url}
                             alt={image.name}
                             fill
-                            unoptimized
                             sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                            quality={70}
                             className="object-cover transition duration-500 group-hover:scale-[1.03]"
                           />
                           <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.14)_55%,rgba(0,0,0,0.72)_100%)]" />
@@ -730,11 +773,11 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
             <div className="relative h-full w-full overflow-hidden">
               <Image
-                src={selectedImage.originalUrl}
+                src={selectedImage.url}
                 alt={selectedImage.name}
                 fill
-                unoptimized
                 sizes="100vw"
+                quality={78}
                 className="object-contain"
               />
             </div>

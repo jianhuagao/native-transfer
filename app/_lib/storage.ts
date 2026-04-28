@@ -1,5 +1,6 @@
 import { del, get, list, put, type BlobAccessType } from "@vercel/blob";
 import path from "node:path";
+import { createPreviewToken } from "@/app/_lib/auth";
 
 export type StoredImage = {
   id: string;
@@ -96,15 +97,20 @@ export async function listImages(): Promise<StoredImage[]> {
   });
 
   return blobs
-    .map((blob) => ({
-      id: blob.pathname,
-      name: path.basename(blob.pathname),
-      url: `/api/images/${encodeURIComponent(blob.pathname)}`,
-      originalUrl: `/api/images/${encodeURIComponent(blob.pathname)}`,
-      uploadedAt: blob.uploadedAt.toISOString(),
-      uploadedAtLabel: formatLabel(blob.uploadedAt),
-      size: blob.size,
-    }))
+    .map((blob) => {
+      const encodedPath = encodeURIComponent(blob.pathname);
+      const previewToken = createPreviewToken(blob.pathname);
+
+      return {
+        id: blob.pathname,
+        name: path.basename(blob.pathname),
+        url: `/api/images/${encodedPath}?preview=1&token=${previewToken}`,
+        originalUrl: `/api/images/${encodedPath}`,
+        uploadedAt: blob.uploadedAt.toISOString(),
+        uploadedAtLabel: formatLabel(blob.uploadedAt),
+        size: blob.size,
+      };
+    })
     .sort((left, right) => {
       return (
         new Date(right.uploadedAt).getTime() -

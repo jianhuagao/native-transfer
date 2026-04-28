@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isAuthorized } from "@/app/_lib/auth";
+import { isAuthorized, verifyPreviewToken } from "@/app/_lib/auth";
 import { listImages, readImage, removeImage } from "@/app/_lib/storage";
 
 export const runtime = "nodejs";
@@ -17,17 +17,20 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ name: string[] }> },
 ) {
-  if (!(await isAuthorized())) {
+  const { name } = await context.params;
+  const pathname = getPathnameFromSegments(name);
+  const isDownload = request.nextUrl.searchParams.has("download");
+  const previewToken = request.nextUrl.searchParams.get("token");
+  const previewAllowed =
+    !isDownload && verifyPreviewToken(pathname, previewToken);
+
+  if (!previewAllowed && !(await isAuthorized())) {
     return unauthorized();
   }
 
-  const { name } = await context.params;
-
   try {
-    const { stream, fileName, mimeType, size } = await readImage(
-      getPathnameFromSegments(name),
-    );
-    const disposition = request.nextUrl.searchParams.get("download")
+    const { stream, fileName, mimeType, size } = await readImage(pathname);
+    const disposition = isDownload
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
 
@@ -36,7 +39,9 @@ export async function GET(
         "Content-Type": mimeType,
         "Content-Length": size.toString(),
         "Content-Disposition": disposition,
-        "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        "Cache-Control": previewAllowed
+          ? "public, max-age=31536000, immutable"
+          : "private, no-store, no-cache, must-revalidate",
       },
     });
   } catch {

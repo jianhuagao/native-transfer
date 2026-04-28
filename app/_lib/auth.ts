@@ -19,6 +19,12 @@ function createSessionValue(password: string) {
     .digest("hex");
 }
 
+function createPreviewTokenValue(pathname: string) {
+  return createHash("sha256")
+    .update(`native-transfer-preview:${getPassword()}:${pathname}`)
+    .digest("hex");
+}
+
 export function verifyPassword(input: string) {
   const configuredPassword = getPassword();
   const left = Buffer.from(input);
@@ -33,6 +39,26 @@ export function verifyPassword(input: string) {
 
 export function getSessionCookieValue() {
   return createSessionValue(getPassword());
+}
+
+export function createPreviewToken(pathname: string) {
+  return createPreviewTokenValue(pathname);
+}
+
+export function verifyPreviewToken(pathname: string, token: string | null) {
+  if (!token) {
+    return false;
+  }
+
+  const expected = createPreviewTokenValue(pathname);
+  const left = Buffer.from(token);
+  const right = Buffer.from(expected);
+
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return timingSafeEqual(left, right);
 }
 
 export async function isAuthorized() {
