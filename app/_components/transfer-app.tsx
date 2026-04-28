@@ -1,5 +1,6 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import Image from "next/image";
 import { startTransition, useEffect, useRef, useState } from "react";
 
@@ -42,6 +43,38 @@ function isTouchLikeDevice() {
   }
 
   return window.matchMedia("(pointer: coarse)").matches;
+}
+
+function pad(value: number) {
+  return value.toString().padStart(2, "0");
+}
+
+function buildUploadPath(fileName: string) {
+  const now = new Date();
+  const dotIndex = fileName.lastIndexOf(".");
+  const hasExtension = dotIndex > 0;
+  const rawBaseName = hasExtension ? fileName.slice(0, dotIndex) : fileName;
+  const extension = hasExtension ? fileName.slice(dotIndex).toLowerCase() : ".jpg";
+  const baseName = rawBaseName
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "image";
+
+  const stamp = [
+    now.getFullYear().toString(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate()),
+    "-",
+    pad(now.getHours()),
+    pad(now.getMinutes()),
+    pad(now.getSeconds()),
+    "-",
+    now.getMilliseconds().toString().padStart(3, "0"),
+  ].join("");
+
+  return `uploads/${stamp}-${baseName}${extension}`;
 }
 
 export function TransferApp({ initialAuthorized }: TransferAppProps) {
@@ -149,7 +182,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     inputRef.current?.click();
   }
 
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     if (!file || uploading) {
@@ -160,58 +193,40 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     setUploadProgress(0);
     setUploading(true);
 
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append("file", file);
+    try {
+      await upload(buildUploadPath(file.name), file, {
+        access: "private",
+        handleUploadUrl: "/api/images/upload",
+        multipart: true,
+        contentType: file.type || undefined,
+        onUploadProgress: ({ percentage }) => {
+          setUploadProgress(Math.round(percentage));
+        },
+      });
 
-    xhr.upload.addEventListener("progress", (progressEvent) => {
-      if (!progressEvent.lengthComputable) {
-        return;
-      }
-
-      const percent = Math.round(
-        (progressEvent.loaded / progressEvent.total) * 100,
-      );
-      setUploadProgress(percent);
-    });
-
-    xhr.addEventListener("load", async () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const previewUrl = URL.createObjectURL(file);
-        setUploadProgress(100);
-        setUploadStatus("传输完成");
-        setRecentImageUrl((current) => {
-          if (current) {
-            URL.revokeObjectURL(current);
-          }
-
-          return previewUrl;
-        });
-        setRecentImageName(file.name);
-        await refreshImages();
-      } else {
-        try {
-          const payload = JSON.parse(xhr.responseText) as { error?: string };
-          setUploadStatus(payload.error ?? "上传失败");
-        } catch {
-          setUploadStatus("上传失败");
+      const previewUrl = URL.createObjectURL(file);
+      setUploadProgress(100);
+      setUploadStatus("传输完成");
+      setRecentImageUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
         }
-      }
 
+        return previewUrl;
+      });
+      setRecentImageName(file.name);
+      await refreshImages();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "上传失败，请检查网络或服务状态。";
+      setUploadStatus(message || "上传失败，请检查网络或服务状态。");
+    } finally {
       setUploading(false);
 
       if (inputRef.current) {
         inputRef.current.value = "";
       }
-    });
-
-    xhr.addEventListener("error", () => {
-      setUploading(false);
-      setUploadStatus("上传失败，请检查网络或服务状态。");
-    });
-
-    xhr.open("POST", "/api/images");
-    xhr.send(formData);
+    }
   }
 
   async function refreshImages() {
@@ -246,7 +261,10 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
     try {
       const response = await fetch(
-        `/api/images/${encodeURIComponent(image.name)}`,
+        `/api/images/${image.id
+          .split("/")
+          .map((segment) => encodeURIComponent(segment))
+          .join("/")}`,
         {
           method: "DELETE",
         },
@@ -632,7 +650,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       {selectedImage ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/72 p-3 backdrop-blur-xl sm:items-center sm:p-6">
           <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#06090f]/95 shadow-[0_30px_120px_rgba(0,0,0,0.7)]">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-white">
                   {selectedImage.name}
@@ -642,23 +660,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                   {formatFileSize(selectedImage.size)}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={showPreviousImage}
-                  disabled={!previousImage}
-                  className="rounded-full border border-white/10 bg-white/8 px-3 py-2 text-sm text-white/74 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  上一张
-                </button>
-                <button
-                  type="button"
-                  onClick={showNextImage}
-                  disabled={!nextImage}
-                  className="rounded-full border border-white/10 bg-white/8 px-3 py-2 text-sm text-white/74 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  下一张
-                </button>
+              <div className="shrink-0">
                 <button
                   type="button"
                   onClick={() => setSelectedImage(null)}
@@ -684,9 +686,9 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:px-6">
               <p className="text-sm text-white/46">桌面下载，手机长按保存</p>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
                 <button
                   type="button"
                   onClick={showPreviousImage}
@@ -706,7 +708,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                 <button
                   type="button"
                   onClick={() => handleDownload(selectedImage)}
-                  className="rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-2 text-sm font-medium text-slate-900 transition hover:brightness-105"
+                  className="col-span-2 rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-2 text-sm font-medium text-slate-900 transition hover:brightness-105 sm:col-span-1"
                 >
                   下载 / 原图
                 </button>
@@ -714,7 +716,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                   type="button"
                   disabled={deletingId === selectedImage.id}
                   onClick={() => void handleDelete(selectedImage)}
-                  className="rounded-full border border-rose-300/18 bg-rose-400/10 px-4 py-2 text-sm text-rose-100 transition hover:bg-rose-400/16 disabled:cursor-not-allowed disabled:opacity-65"
+                  className="col-span-2 rounded-full border border-rose-300/18 bg-rose-400/10 px-4 py-2 text-sm text-rose-100 transition hover:bg-rose-400/16 disabled:cursor-not-allowed disabled:opacity-65 sm:col-span-1"
                 >
                   {deletingId === selectedImage.id ? "删除中..." : "删除"}
                 </button>

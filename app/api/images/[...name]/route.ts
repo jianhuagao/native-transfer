@@ -9,9 +9,13 @@ function unauthorized() {
   return NextResponse.json({ error: "未授权" }, { status: 401 });
 }
 
+function getPathnameFromSegments(segments: string[]) {
+  return segments.join("/");
+}
+
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ name: string }> }
+  context: { params: Promise<{ name: string[] }> },
 ) {
   if (!(await isAuthorized())) {
     return unauthorized();
@@ -20,7 +24,9 @@ export async function GET(
   const { name } = await context.params;
 
   try {
-    const { stream, fileName, mimeType, size } = await readImage(name);
+    const { stream, fileName, mimeType, size } = await readImage(
+      getPathnameFromSegments(name),
+    );
     const disposition = request.nextUrl.searchParams.get("download")
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
@@ -40,14 +46,14 @@ export async function GET(
 
 export async function DELETE(
   _request: Request,
-  context: { params: Promise<{ name: string }> }
+  context: { params: Promise<{ name: string[] }> },
 ) {
   if (!(await isAuthorized())) {
     return unauthorized();
   }
 
   const { name } = await context.params;
-  await removeImage(name);
+  await removeImage(getPathnameFromSegments(name));
 
   const images = await listImages();
 
