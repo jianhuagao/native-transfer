@@ -35,8 +35,7 @@ const HISTORY_GRID_STYLE = {
   gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 17rem), 1fr))",
 };
 
-const IMAGE_PLACEHOLDER =
-  "data:image/svg+xml;charset=utf-8," +
+const IMAGE_PLACEHOLDER = ("data:image/svg+xml;charset=utf-8," +
   encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
       <defs>
@@ -51,12 +50,16 @@ const IMAGE_PLACEHOLDER =
       </defs>
       <rect width="48" height="48" fill="url(#g)" filter="url(#b)" />
     </svg>
-  `) as `data:image/${string}`;
+  `)) as `data:image/${string}`;
 
 type ProgressiveImageProps = ComponentProps<typeof Image>;
 type ProgressiveImageTransition = {
   overlayClassName?: string;
   imageClassName?: string;
+};
+type ProgressiveImageLoadingIndicator = {
+  enabled?: boolean;
+  sizeClassName?: string;
 };
 
 function getImageSrcValue(src: ProgressiveImageProps["src"]) {
@@ -83,9 +86,13 @@ function ProgressiveImage({
   onLoad,
   placeholder = IMAGE_PLACEHOLDER,
   src,
+  loadingIndicator,
   transition,
   ...props
-}: ProgressiveImageProps & { transition?: ProgressiveImageTransition }) {
+}: ProgressiveImageProps & {
+  loadingIndicator?: ProgressiveImageLoadingIndicator;
+  transition?: ProgressiveImageTransition;
+}) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const currentSrc = getImageSrcValue(src);
   const loaded = loadedSrc === currentSrc;
@@ -93,6 +100,8 @@ function ProgressiveImage({
     transition?.overlayClassName ?? "duration-500";
   const imageTransitionClassName =
     transition?.imageClassName ?? "duration-700 ease-out";
+  const loadingIndicatorSizeClassName =
+    loadingIndicator?.sizeClassName ?? "h-11 w-11";
 
   return (
     <>
@@ -101,6 +110,19 @@ function ProgressiveImage({
           loaded ? "opacity-0" : "opacity-100"
         }`}
       />
+      {loadingIndicator?.enabled ? (
+        <div
+          className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center transition duration-300 ${
+            loaded ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          <div className="rounded-full border border-white/10 bg-black/28 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
+            <div
+              className={`${loadingIndicatorSizeClassName} animate-spin rounded-full border-2 border-white/18 border-t-cyan-200/90`}
+            />
+          </div>
+        </div>
+      ) : null}
       <Image
         {...props}
         alt={alt}
@@ -194,6 +216,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const [recentImageName, setRecentImageName] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [refreshingImages, setRefreshingImages] = useState(false);
+  const [imageRefreshVersion, setImageRefreshVersion] = useState(0);
   const [confettiToken, setConfettiToken] = useState(0);
   const [confettiVisible, setConfettiVisible] = useState(false);
   const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
@@ -384,6 +408,28 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     startTransition(() => {
       setImages(payload.images);
     });
+  }
+
+  function withRefreshVersion(url: string) {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}v=${imageRefreshVersion}`;
+  }
+
+  async function handleRefreshImages() {
+    if (refreshingImages) {
+      return;
+    }
+
+    setRefreshingImages(true);
+
+    try {
+      await refreshImages();
+      setImageRefreshVersion((current) => current + 1);
+    } catch {
+      setLoginError("刷新失败，请稍后重试。");
+    } finally {
+      setRefreshingImages(false);
+    }
   }
 
   function handleContinueUpload() {
@@ -598,6 +644,14 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
+              onClick={() => void handleRefreshImages()}
+              disabled={refreshingImages}
+              className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/75 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {refreshingImages ? "刷新中..." : "刷新"}
+            </button>
+            <button
+              type="button"
               onClick={handleLogout}
               className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/75 transition hover:bg-white/12"
             >
@@ -801,7 +855,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                       >
                         <div className="relative aspect-[0.82] overflow-hidden">
                           <ProgressiveImage
-                            src={image.url}
+                            src={withRefreshVersion(image.url)}
                             alt={image.name}
                             fill
                             sizes="(max-width: 640px) 100vw, (max-width: 960px) 50vw, (max-width: 1280px) 33vw, (max-width: 1680px) 25vw, 20vw"
@@ -865,13 +919,17 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
             <div className="relative h-full w-full overflow-hidden">
               <ProgressiveImage
-                src={selectedImage.url}
+                src={withRefreshVersion(selectedImage.url)}
                 alt={selectedImage.name}
                 fill
                 sizes="100vw"
                 quality={78}
                 loading="eager"
                 decoding="async"
+                loadingIndicator={{
+                  enabled: true,
+                  sizeClassName: "h-12 w-12",
+                }}
                 transition={{
                   overlayClassName: "duration-200",
                   imageClassName: "duration-300 ease-out",
@@ -900,17 +958,17 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDownload(selectedImage)}
-                  className="rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-2 text-sm font-medium text-slate-900 transition hover:brightness-105"
-                >
-                  下载 / 原图
-                </button>
-                <button
-                  type="button"
                   onClick={() => void handleCopyLink(selectedImage)}
                   className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/78 transition hover:bg-white/12"
                 >
                   复制链接
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownload(selectedImage)}
+                  className="rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-2 text-sm font-medium text-slate-900 transition hover:brightness-105"
+                >
+                  下载 / 原图
                 </button>
                 <button
                   type="button"
