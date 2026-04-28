@@ -1,6 +1,8 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
+import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
+import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
 import Image from "next/image";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { SuccessConfetti } from "@/app/_components/success-confetti";
@@ -20,6 +22,8 @@ type StoredImage = {
 type TransferAppProps = {
   initialAuthorized: boolean;
 };
+
+type ConfettiKind = "upload" | "copy";
 
 const tabs: { key: TabKey; label: string; description: string }[] = [
   { key: "transfer", label: "传输", description: "" },
@@ -99,6 +103,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confettiToken, setConfettiToken] = useState(0);
   const [confettiVisible, setConfettiVisible] = useState(false);
+  const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
 
   const uploadRadius = 120;
   const uploadStrokeWidth = 8;
@@ -178,6 +183,9 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       method: "POST",
     });
 
+    setConfettiVisible(false);
+    setConfettiKind(null);
+    setConfettiToken(0);
     setAuthorized(false);
     setImages([]);
     setSelectedImage(null);
@@ -188,7 +196,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     inputRef.current?.click();
   }
 
-  function playSuccessConfetti() {
+  function playSuccessConfetti(kind: ConfettiKind) {
+    setConfettiKind(kind);
     setConfettiVisible(true);
     setConfettiToken((current) => current + 1);
   }
@@ -226,7 +235,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         return previewUrl;
       });
       setRecentImageName(file.name);
-      playSuccessConfetti();
+      playSuccessConfetti("upload");
       await refreshImages();
     } catch (error) {
       const message =
@@ -314,7 +323,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
     try {
       await navigator.clipboard.writeText(absoluteUrl);
-      playSuccessConfetti();
+      playSuccessConfetti("copy");
     } catch {
       window.prompt("复制链接", absoluteUrl);
     }
@@ -423,11 +432,21 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <SuccessConfetti
-        playToken={confettiToken}
-        visible={confettiVisible}
-        onComplete={() => setConfettiVisible(false)}
-      />
+      {confettiKind ? (
+        <SuccessConfetti
+          playToken={confettiToken}
+          visible={confettiVisible}
+          animationData={
+            confettiKind === "upload"
+              ? uploadSuccessAnimation
+              : copySuccessAnimation
+          }
+          onComplete={() => {
+            setConfettiVisible(false);
+            setConfettiKind(null);
+          }}
+        />
+      ) : null}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(89,168,255,0.18),transparent_28%),radial-gradient(circle_at_85%_12%,rgba(237,244,255,0.08),transparent_18%),radial-gradient(circle_at_20%_80%,rgba(50,110,255,0.16),transparent_26%),linear-gradient(180deg,#03060c_0%,#080b12_50%,#020304_100%)]" />
       <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-220 -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
 
