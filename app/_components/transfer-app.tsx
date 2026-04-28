@@ -1,241 +1,33 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
+import { SuccessConfetti } from "@/app/_components/success-confetti";
+import { AppHeader } from "@/app/_components/transfer/app-header";
+import { HistoryPanel } from "@/app/_components/transfer/history-panel";
+import { ImageViewerModal } from "@/app/_components/transfer/image-viewer-modal";
+import { LoginScreen } from "@/app/_components/transfer/login-screen";
+import { TabSwitcher } from "@/app/_components/transfer/tab-switcher";
+import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
+import type {
+  ConfettiKind,
+  StoredImage,
+  TabKey,
+  TransferAppProps,
+} from "@/app/_components/transfer/types";
+import {
+  buildDeleteImagePath,
+  isTouchLikeDevice,
+} from "@/app/_components/transfer/utils";
 import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
 import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
-import Image, { type StaticImageData } from "next/image";
-import {
-  TransformComponent,
-  TransformWrapper,
-  type ReactZoomPanPinchRef,
-} from "react-zoom-pan-pinch";
-import {
-  startTransition,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-} from "react";
-import { SuccessConfetti } from "@/app/_components/success-confetti";
-import {
-  ArrowDownOnSquareIcon,
-  LinkIcon,
-  ArrowPathIcon,
-  ArrowUturnLeftIcon,
-  ArrowUturnRightIcon,
-  MagnifyingGlassMinusIcon,
-  MagnifyingGlassPlusIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  PhotoIcon,
-  TrashIcon,
-  XMarkIcon,
-  PowerIcon,
-  PlusIcon,
-} from "@heroicons/react/24/solid";
-
-type TabKey = "transfer" | "history";
-
-type StoredImage = {
-  id: string;
-  name: string;
-  url: string;
-  originalUrl: string;
-  uploadedAt: string;
-  uploadedAtLabel: string;
-  size: number;
-};
-
-type TransferAppProps = {
-  initialAuthorized: boolean;
-};
-
-type ConfettiKind = "upload" | "copy";
-
-const HISTORY_GRID_STYLE = {
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 17rem), 1fr))",
-};
-
-const IMAGE_PLACEHOLDER = ("data:image/svg+xml;charset=utf-8," +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-      <defs>
-        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#182131" />
-          <stop offset="50%" stop-color="#22314a" />
-          <stop offset="100%" stop-color="#111827" />
-        </linearGradient>
-        <filter id="b">
-          <feGaussianBlur stdDeviation="4" />
-        </filter>
-      </defs>
-      <rect width="48" height="48" fill="url(#g)" filter="url(#b)" />
-    </svg>
-  `)) as `data:image/${string}`;
-
-type ProgressiveImageProps = ComponentProps<typeof Image>;
-type ProgressiveImageTransition = {
-  overlayClassName?: string;
-  imageClassName?: string;
-};
-type ProgressiveImageLoadingIndicator = {
-  enabled?: boolean;
-  sizeClassName?: string;
-};
-
-function getImageSrcValue(src: ProgressiveImageProps["src"]) {
-  if (typeof src === "string") {
-    return src;
-  }
-
-  if ("default" in src) {
-    return src.default.src;
-  }
-
-  return (src as StaticImageData).src;
-}
-
-const tabs: { key: TabKey; label: string; description: string }[] = [
-  { key: "transfer", label: "传输", description: "" },
-  { key: "history", label: "内容", description: "" },
-];
-
-function ProgressiveImage({
-  alt,
-  className,
-  loading = "lazy",
-  onLoad,
-  placeholder = IMAGE_PLACEHOLDER,
-  src,
-  loadingIndicator,
-  transition,
-  ...props
-}: ProgressiveImageProps & {
-  loadingIndicator?: ProgressiveImageLoadingIndicator;
-  transition?: ProgressiveImageTransition;
-}) {
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const currentSrc = getImageSrcValue(src);
-  const loaded = loadedSrc === currentSrc;
-  const overlayTransitionClassName =
-    transition?.overlayClassName ?? "duration-500";
-  const imageTransitionClassName =
-    transition?.imageClassName ?? "duration-700 ease-out";
-  const loadingIndicatorSizeClassName =
-    loadingIndicator?.sizeClassName ?? "h-11 w-11";
-
-  return (
-    <>
-      <div
-        className={`absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_48%,rgba(0,0,0,0.24))] transition ${overlayTransitionClassName} ${
-          loaded ? "opacity-0" : "opacity-100"
-        }`}
-      />
-      {loadingIndicator?.enabled ? (
-        <div
-          className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center transition duration-300 ${
-            loaded ? "opacity-0" : "opacity-100"
-          }`}
-        >
-          <div className="rounded-full border border-white/10 bg-black/28 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-            <div
-              className={`${loadingIndicatorSizeClassName} animate-spin rounded-full border-2 border-white/18 border-t-cyan-200/90`}
-            />
-          </div>
-        </div>
-      ) : null}
-      <Image
-        {...props}
-        alt={alt}
-        loading={loading}
-        placeholder={placeholder}
-        src={src}
-        onLoad={(event) => {
-          setLoadedSrc(currentSrc);
-          onLoad?.(event);
-        }}
-        className={`${className ?? ""} transition ${imageTransitionClassName} ${
-          loaded
-            ? "scale-100 opacity-100 blur-0"
-            : "scale-[1.02] opacity-0 blur-xl"
-        }`}
-      />
-    </>
-  );
-}
-
-function formatFileSize(size: number) {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function isTouchLikeDevice() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.matchMedia("(pointer: coarse)").matches;
-}
-
-function pad(value: number) {
-  return value.toString().padStart(2, "0");
-}
-
-function buildUploadPath(fileName: string) {
-  const now = new Date();
-  const dotIndex = fileName.lastIndexOf(".");
-  const hasExtension = dotIndex > 0;
-  const rawBaseName = hasExtension ? fileName.slice(0, dotIndex) : fileName;
-  const extension = hasExtension
-    ? fileName.slice(dotIndex).toLowerCase()
-    : ".jpg";
-  const baseName =
-    rawBaseName
-      .normalize("NFKD")
-      .replace(/[^\w.-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase() || "image";
-
-  const stamp = [
-    now.getFullYear().toString(),
-    pad(now.getMonth() + 1),
-    pad(now.getDate()),
-    "-",
-    pad(now.getHours()),
-    pad(now.getMinutes()),
-    pad(now.getSeconds()),
-    "-",
-    now.getMilliseconds().toString().padStart(3, "0"),
-  ].join("");
-
-  return `uploads/${stamp}-${baseName}${extension}`;
-}
+import { startTransition, useEffect, useState } from "react";
 
 export function TransferApp({ initialAuthorized }: TransferAppProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const imageViewerRef = useRef<ReactZoomPanPinchRef | null>(null);
-  const previewTimerRef = useRef<number | null>(null);
-  const recentImageUrlRef = useRef<string | null>(null);
   const [authorized, setAuthorized] = useState(initialAuthorized);
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authNotice, setAuthNotice] = useState("");
+  const [pageError, setPageError] = useState("");
   const [activeTab, setActiveTab] = useState<TabKey>("transfer");
   const [images, setImages] = useState<StoredImage[]>([]);
   const [historyLoading, setHistoryLoading] = useState(initialAuthorized);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState("");
-  const [recentImageUrl, setRecentImageUrl] = useState<string | null>(null);
-  const [recentImageName, setRecentImageName] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
@@ -243,17 +35,6 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const [confettiToken, setConfettiToken] = useState(0);
   const [confettiVisible, setConfettiVisible] = useState(false);
   const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
-  const [previewRotation, setPreviewRotation] = useState(0);
-  const [previewScale, setPreviewScale] = useState(1);
-  const [selectedImageLoading, setSelectedImageLoading] = useState(false);
-  const [previewUseOriginal, setPreviewUseOriginal] = useState(false);
-
-  const uploadRadius = 120;
-  const uploadStrokeWidth = 8;
-  const uploadCircumference = 2 * Math.PI * uploadRadius;
-  const displayedUploadProgress = recentImageUrl ? 100 : uploadProgress;
-  const uploadOffset =
-    uploadCircumference * (1 - displayedUploadProgress / 100);
 
   useEffect(() => {
     if (!authorized) {
@@ -271,13 +52,15 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         const payload = (await response.json()) as { images: StoredImage[] };
 
         if (!cancelled) {
+          setPageError("");
           setImages(payload.images);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setAuthorized(false);
-          setLoginError("登录状态失效，请重新输入密码。");
+          setAuthNotice("登录状态失效，请重新输入密码。");
+          setSelectedImage(null);
         }
       })
       .finally(() => {
@@ -291,11 +74,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     };
   }, [authorized]);
 
-  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAuthLoading(true);
-    setLoginError("");
-
+  async function handleLogin(password: string) {
+    setAuthNotice("");
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -307,17 +87,14 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
-        setLoginError(payload.error ?? "登录失败");
-        return;
+        return payload.error ?? "登录失败";
       }
 
-      setPassword("");
       setHistoryLoading(true);
       setAuthorized(true);
+      return null;
     } catch {
-      setLoginError("网络异常，请稍后重试。");
-    } finally {
-      setAuthLoading(false);
+      return "网络异常，请稍后重试。";
     }
   }
 
@@ -329,98 +106,17 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     setConfettiVisible(false);
     setConfettiKind(null);
     setConfettiToken(0);
+    setPageError("");
     setAuthorized(false);
     setImages([]);
-    closeSelectedImage();
+    setSelectedImage(null);
     setActiveTab("transfer");
-  }
-
-  function triggerPicker() {
-    inputRef.current?.click();
-  }
-
-  function clearPreviewTimer() {
-    if (previewTimerRef.current !== null) {
-      window.clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
-    }
-  }
-
-  function commitRecentImage(previewUrl: string, fileName: string) {
-    setRecentImageUrl((current) => {
-      if (current) {
-        URL.revokeObjectURL(current);
-      }
-
-      recentImageUrlRef.current = previewUrl;
-      return previewUrl;
-    });
-    setRecentImageName(fileName);
-  }
-
-  function scheduleRecentImage(previewUrl: string, fileName: string) {
-    clearPreviewTimer();
-
-    const delay = isTouchLikeDevice() ? 260 : 0;
-
-    if (delay === 0) {
-      commitRecentImage(previewUrl, fileName);
-      return;
-    }
-
-    previewTimerRef.current = window.setTimeout(() => {
-      commitRecentImage(previewUrl, fileName);
-      previewTimerRef.current = null;
-    }, delay);
   }
 
   function playSuccessConfetti(kind: ConfettiKind) {
     setConfettiKind(kind);
     setConfettiVisible(true);
     setConfettiToken((current) => current + 1);
-  }
-
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
-    if (!file || uploading) {
-      return;
-    }
-
-    setUploadStatus("");
-    setUploadProgress(0);
-    setUploading(true);
-
-    try {
-      await upload(buildUploadPath(file.name), file, {
-        access: "private",
-        handleUploadUrl: "/api/images/upload",
-        multipart: true,
-        contentType: file.type || undefined,
-        onUploadProgress: ({ percentage }) => {
-          setUploadProgress(Math.round(percentage));
-        },
-      });
-
-      const previewUrl = URL.createObjectURL(file);
-      setUploadProgress(100);
-      setUploadStatus("传输完成");
-      playSuccessConfetti("upload");
-      scheduleRecentImage(previewUrl, file.name);
-      await refreshImages();
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "上传失败，请检查网络或服务状态。";
-      setUploadStatus(message || "上传失败，请检查网络或服务状态。");
-    } finally {
-      setUploading(false);
-
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-    }
   }
 
   async function refreshImages() {
@@ -436,11 +132,6 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     });
   }
 
-  function withRefreshVersion(url: string) {
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}v=${imageRefreshVersion}`;
-  }
-
   async function handleRefreshImages() {
     if (refreshingImages) {
       return;
@@ -450,54 +141,22 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
     try {
       await refreshImages();
+      setPageError("");
       setImageRefreshVersion((current) => current + 1);
     } catch {
-      setLoginError("刷新失败，请稍后重试。");
+      setPageError("刷新失败，请稍后重试。");
     } finally {
       setRefreshingImages(false);
     }
   }
 
-  function handleContinueUpload() {
-    clearPreviewTimer();
-    setUploadProgress(0);
-    setUploadStatus("");
-    setRecentImageUrl((current) => {
-      if (current) {
-        URL.revokeObjectURL(current);
-      }
-
-      recentImageUrlRef.current = null;
-      return null;
-    });
-    setRecentImageName("");
-    triggerPicker();
-  }
-
-  useEffect(() => {
-    return () => {
-      clearPreviewTimer();
-
-      if (recentImageUrlRef.current) {
-        URL.revokeObjectURL(recentImageUrlRef.current);
-        recentImageUrlRef.current = null;
-      }
-    };
-  }, []);
-
   async function handleDelete(image: StoredImage) {
     setDeletingId(image.id);
 
     try {
-      const response = await fetch(
-        `/api/images/${image.id
-          .split("/")
-          .map((segment) => encodeURIComponent(segment))
-          .join("/")}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await fetch(buildDeleteImagePath(image.id), {
+        method: "DELETE",
+      });
 
       if (!response.ok) {
         throw new Error("delete failed");
@@ -505,9 +164,12 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
       const payload = (await response.json()) as { images: StoredImage[] };
       setImages(payload.images);
+      setPageError("");
       if (selectedImage?.id === image.id) {
-        closeSelectedImage();
+        setSelectedImage(null);
       }
+    } catch {
+      setPageError("删除失败，请稍后重试。");
     } finally {
       setDeletingId(null);
     }
@@ -535,166 +197,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     }
   }
 
-  const selectedImageIndex = selectedImage
-    ? images.findIndex((image) => image.id === selectedImage.id)
-    : -1;
-  const previousImage =
-    selectedImageIndex > 0 ? images[selectedImageIndex - 1] : null;
-  const nextImage =
-    selectedImageIndex >= 0 && selectedImageIndex < images.length - 1
-      ? images[selectedImageIndex + 1]
-      : null;
-
-  function openSelectedImage(image: StoredImage) {
-    setPreviewRotation(0);
-    setPreviewScale(1);
-    setSelectedImageLoading(true);
-    setPreviewUseOriginal(false);
-    setSelectedImage(image);
-  }
-
-  function closeSelectedImage() {
-    setPreviewRotation(0);
-    setPreviewScale(1);
-    setSelectedImageLoading(false);
-    setPreviewUseOriginal(false);
-    setSelectedImage(null);
-  }
-
-  function showPreviousImage() {
-    if (previousImage) {
-      openSelectedImage(previousImage);
-    }
-  }
-
-  function showNextImage() {
-    if (nextImage) {
-      openSelectedImage(nextImage);
-    }
-  }
-
-  function zoomSelectedImageIn() {
-    imageViewerRef.current?.zoomIn(0.2);
-  }
-
-  function zoomSelectedImageOut() {
-    imageViewerRef.current?.zoomOut(0.2);
-  }
-
-  function rotateSelectedImageLeft() {
-    setPreviewRotation((current) => current - 90);
-  }
-
-  function rotateSelectedImageRight() {
-    setPreviewRotation((current) => current + 90);
-  }
-
-  function resetSelectedImageView() {
-    setPreviewRotation(0);
-    setPreviewScale(1);
-    imageViewerRef.current?.resetTransform(0);
-    imageViewerRef.current?.centerView(1, 0);
-  }
-
-  function showSelectedImageOriginal() {
-    setSelectedImageLoading(true);
-    setPreviewUseOriginal(true);
-    imageViewerRef.current?.resetTransform(0);
-    imageViewerRef.current?.centerView(1, 0);
-  }
-
-  useEffect(() => {
-    if (!selectedImage) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      imageViewerRef.current?.resetTransform(0);
-      imageViewerRef.current?.centerView(1, 0);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [selectedImage]);
-
-  useEffect(() => {
-    if (!selectedImage) {
-      return;
-    }
-
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        closeSelectedImage();
-      }
-
-      if (event.key === "ArrowLeft" && previousImage) {
-        openSelectedImage(previousImage);
-      }
-
-      if (event.key === "ArrowRight" && nextImage) {
-        openSelectedImage(nextImage);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [nextImage, previousImage, selectedImage]);
-
   if (!authorized) {
-    return (
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(128,191,255,0.22),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(180deg,#050816_0%,#080b12_45%,#030406_100%)]" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[linear-gradient(180deg,rgba(255,255,255,0.15),transparent)] blur-3xl" />
-
-        <section className="relative w-full max-w-md rounded-4xl border border-white/12 bg-white/8 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-3xl">
-          <div className="mb-4 space-y-4">
-            <span className="inline-flex rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs tracking-[0.24em] text-white/60 uppercase">
-              Native Transfer
-            </span>
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-              Transfer
-            </h1>
-          </div>
-
-          <form className="space-y-4" onSubmit={handleLogin}>
-            <label className="block space-y-2">
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40 focus:bg-black/40"
-                placeholder="password"
-                autoComplete="current-password"
-              />
-            </label>
-
-            {loginError ? (
-              <p className="text-sm text-rose-300">{loginError}</p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full rounded-2xl bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-3 text-sm font-medium text-slate-900 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {authLoading ? "loading..." : "enter"}
-            </button>
-          </form>
-        </section>
-      </main>
-    );
+    return <LoginScreen notice={authNotice} onLogin={handleLogin} />;
   }
 
   return (
@@ -718,464 +222,46 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-220 -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
 
       <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full flex-col rounded-[32px] border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
-        <header className="mb-6 flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-[-0.05em] text-white sm:text-3xl">
-              Native Transfer
-            </h1>
-            <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-white/45">
-              已保存 {images.length} 张
-            </div>
-          </div>
+        <AppHeader
+          imageCount={images.length}
+          refreshingImages={refreshingImages}
+          pageError={pageError}
+          onRefreshImages={() => void handleRefreshImages()}
+          onLogout={() => void handleLogout()}
+        />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void handleRefreshImages()}
-              disabled={refreshingImages}
-              title={refreshingImages ? "刷新中" : "刷新"}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/75 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <ArrowPathIcon
-                className={`h-[18px] w-[18px] ${
-                  refreshingImages ? "animate-spin" : ""
-                }`}
-              />
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/75 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <PowerIcon className="h-4 w-4" />
-            </button>
-          </div>
-        </header>
-
-        <div className="mb-8 flex justify-center">
-          <div className="inline-flex rounded-full border border-white/10 bg-black/20 p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.24)]">
-            {tabs.map((tab) => {
-              const active = tab.key === activeTab;
-
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`min-w-28 rounded-full px-6 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? "bg-white text-slate-950"
-                      : "text-white/60 hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <TabSwitcher activeTab={activeTab} onChange={setActiveTab} />
 
         <div className="flex-1">
           {activeTab === "transfer" ? (
-            <section className="flex min-h-[32rem] items-center justify-center">
-              <article className="w-full max-w-3xl rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.13),rgba(255,255,255,0.03))] p-6 sm:p-10">
-                <div className="mb-8 flex items-center justify-between gap-3">
-                  <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">
-                    上传原图
-                  </h2>
-                  <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-white/45">
-                    本地保存
-                  </div>
-                </div>
-
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-
-                <div className="flex flex-col items-center justify-center gap-8 py-4">
-                  <div className="relative h-[19rem] w-[19rem] sm:h-[24rem] sm:w-[24rem]">
-                    {!recentImageUrl ? (
-                      <svg
-                        className="pointer-events-none absolute inset-0 z-20 -rotate-90 overflow-visible"
-                        viewBox="0 0 280 280"
-                        fill="none"
-                      >
-                        <circle
-                          cx="140"
-                          cy="140"
-                          r={uploadRadius}
-                          stroke="rgba(255,255,255,0.10)"
-                          strokeWidth={uploadStrokeWidth}
-                        />
-                        <circle
-                          cx="140"
-                          cy="140"
-                          r={uploadRadius}
-                          stroke="url(#upload-progress-gradient)"
-                          strokeWidth={uploadStrokeWidth}
-                          strokeLinecap="round"
-                          strokeDasharray={uploadCircumference}
-                          strokeDashoffset={uploadOffset}
-                          className="transition-all duration-300"
-                          style={{
-                            filter:
-                              "drop-shadow(0 0 12px rgba(149, 214, 255, 0.18))",
-                          }}
-                        />
-                        <defs>
-                          <linearGradient
-                            id="upload-progress-gradient"
-                            x1="20"
-                            y1="20"
-                            x2="260"
-                            y2="260"
-                          >
-                            <stop
-                              offset="0%"
-                              stopColor="rgba(149,214,255,0.96)"
-                            />
-                            <stop
-                              offset="100%"
-                              stopColor="rgba(255,255,255,0.92)"
-                            />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={
-                        recentImageUrl && !uploading
-                          ? handleContinueUpload
-                          : triggerPicker
-                      }
-                      disabled={uploading}
-                      className="absolute inset-[1.7rem] z-10 overflow-hidden rounded-full border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.02)_58%),rgba(0,0,0,0.28)] transition hover:border-cyan-200/35 hover:bg-black/30 disabled:cursor-not-allowed"
-                    >
-                      {recentImageUrl ? (
-                        <>
-                          <ProgressiveImage
-                            src={recentImageUrl}
-                            alt={recentImageName || "Uploaded image"}
-                            fill
-                            unoptimized
-                            sizes="(max-width: 640px) 18rem, 22rem"
-                            className="object-cover"
-                          />
-                          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.06),rgba(0,0,0,0.44))]" />
-                          {/* <div className="absolute inset-x-0 bottom-0 px-5 pb-6 text-center">
-                            <div className="mb-1 text-sm text-white/70">{uploadStatus || "已完成"}</div>
-                            <div className="truncate text-base font-medium text-white">{recentImageName}</div>
-                          </div> */}
-                        </>
-                      ) : (
-                        <div className="flex h-full flex-col items-center justify-center text-center">
-                          <div className="mb-4 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-xs uppercase tracking-[0.28em] text-white/55">
-                            Original
-                          </div>
-                          <div className="text-xl font-medium text-white">
-                            {uploading ? `${uploadProgress}%` : "选择图片"}
-                          </div>
-                          <div className="mt-3 text-sm text-white/45">
-                            {uploading ? "传输中" : "不压缩，不转换"}
-                          </div>
-                        </div>
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <div className="flex items-center gap-2 text-sm text-white/46">
-                      {recentImageUrl ? (
-                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/18 text-emerald-300">
-                          <svg
-                            viewBox="0 0 20 20"
-                            fill="none"
-                            className="h-3.5 w-3.5"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M4.5 10.5 8 14l7.5-8"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </span>
-                      ) : null}
-                      <span>{uploadStatus || "支持手机和桌面端原图传输"}</span>
-                    </div>
-                    {recentImageUrl ? (
-                      <button
-                        type="button"
-                        onClick={handleContinueUpload}
-                        className="rounded-full mt-2 border border-white/10 bg-white/8 p-2.5 text-sm text-white/82 transition hover:bg-white/12"
-                      >
-                        <PlusIcon className="size-5" />
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </article>
-            </section>
+            <TransferUploadPanel
+              onUploaded={refreshImages}
+              onUploadSuccess={() => playSuccessConfetti("upload")}
+            />
           ) : (
-            <section>
-              <article className="rounded-[28px] sm:border border-white/10 sm:bg-white/6 p-0 sm:p-5">
-                {historyLoading ? (
-                  <div className="grid gap-4" style={HISTORY_GRID_STYLE}>
-                    {Array.from({ length: 6 }).map((_, index) => (
-                      <div
-                        key={index}
-                        className="aspect-[0.82] animate-pulse rounded-[24px] border border-white/8 bg-white/7"
-                      />
-                    ))}
-                  </div>
-                ) : images.length > 0 ? (
-                  <div className="grid gap-4" style={HISTORY_GRID_STYLE}>
-                    {images.map((image) => (
-                      <button
-                        key={image.id}
-                        type="button"
-                        onClick={() => openSelectedImage(image)}
-                        className="group overflow-hidden rounded-[24px] border border-white/10 bg-black/18 text-left transition hover:-translate-y-0.5 hover:border-white/20"
-                      >
-                        <div className="relative aspect-[0.82] overflow-hidden">
-                          <ProgressiveImage
-                            src={withRefreshVersion(image.url)}
-                            alt={image.name}
-                            fill
-                            sizes="(max-width: 640px) 100vw, (max-width: 960px) 50vw, (max-width: 1280px) 33vw, (max-width: 1680px) 25vw, 20vw"
-                            quality={70}
-                            decoding="async"
-                            className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                          />
-                          <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.14)_55%,rgba(0,0,0,0.72)_100%)]" />
-                          <div className="absolute inset-x-0 bottom-0 p-4">
-                            <div className="line-clamp-1 text-sm text-white/90">
-                              {image.name}
-                            </div>
-                            <div className="mt-1 text-xs text-white/55">
-                              {image.uploadedAtLabel}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex min-h-80 flex-col items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-black/18 px-6 text-center">
-                    <h3 className="text-xl font-medium text-white">暂无图片</h3>
-                  </div>
-                )}
-              </article>
-            </section>
+            <HistoryPanel
+              historyLoading={historyLoading}
+              imageRefreshVersion={imageRefreshVersion}
+              images={images}
+              onOpenImage={setSelectedImage}
+            />
           )}
         </div>
       </section>
 
       {selectedImage ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/82 p-0 backdrop-blur-xl sm:p-4"
-          onClick={closeSelectedImage}
-        >
-          <div
-            className="relative h-[100dvh] w-full overflow-hidden bg-[#03060c]/96 shadow-[0_30px_120px_rgba(0,0,0,0.7)] sm:h-[94dvh] sm:max-w-[min(96vw,1600px)] sm:rounded-[28px] sm:border sm:border-white/10"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 bg-[linear-gradient(180deg,rgba(0,0,0,0.6),rgba(0,0,0,0))] p-4 sm:p-5">
-              <div className="min-w-0 rounded-full border border-white/10 bg-black/30 px-3 py-2 pr-4 backdrop-blur-md">
-                <div className="truncate text-sm font-medium text-white">
-                  {selectedImage.name}
-                </div>
-                <div className="mt-1 text-xs text-white/55">
-                  {selectedImage.uploadedAtLabel} ·{" "}
-                  {formatFileSize(selectedImage.size)}
-                </div>
-              </div>
-              <div className="pointer-events-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={closeSelectedImage}
-                  className="rounded-full border border-white/10 bg-black/36 p-2 text-sm text-white/82 backdrop-blur-md transition hover:bg-black/52"
-                >
-                  <XMarkIcon className="size-6 font-bold text-white" />
-                </button>
-              </div>
-            </div>
-
-            <div className="relative h-full w-full overflow-hidden">
-              {selectedImageLoading ? (
-                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                  <div className="rounded-full border border-white/10 bg-black/28 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-md">
-                    <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/18 border-t-cyan-200/90" />
-                  </div>
-                </div>
-              ) : null}
-              <TransformWrapper
-                ref={imageViewerRef}
-                initialScale={1}
-                minScale={1}
-                maxScale={6}
-                smooth={false}
-                centerOnInit
-                centerZoomedOut
-                doubleClick={{ mode: "zoomIn", step: 1.5 }}
-                pinch={{ step: 5 }}
-                wheel={{ step: 0.2 }}
-                panning={{ allowLeftClickPan: true }}
-                onInit={(ref) => {
-                  imageViewerRef.current = ref;
-                }}
-                onTransform={(_, state) => {
-                  setPreviewScale(state.scale);
-                }}
-              >
-                <TransformComponent
-                  wrapperClass="!h-full !w-full"
-                  contentClass="!h-full !w-full"
-                  wrapperStyle={{
-                    width: "100%",
-                    height: "100%",
-                  }}
-                  contentStyle={{
-                    width: "100%",
-                    height: "100%",
-                  }}
-                >
-                  <div className="flex h-full w-full items-center justify-center p-4 pt-24 pb-16 sm:p-8 sm:pt-24 sm:pb-20">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={
-                        previewUseOriginal
-                          ? selectedImage.originalUrl
-                          : withRefreshVersion(selectedImage.url)
-                      }
-                      alt={selectedImage.name}
-                      onLoad={() => setSelectedImageLoading(false)}
-                      onError={() => setSelectedImageLoading(false)}
-                      draggable={false}
-                      className="max-h-full max-w-full select-none object-contain transition-transform duration-200 ease-out"
-                      style={{
-                        transform: `rotate(${previewRotation}deg)`,
-                        transformOrigin: "center center",
-                      }}
-                    />
-                  </div>
-                </TransformComponent>
-              </TransformWrapper>
-            </div>
-
-            <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 w-full max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-3 sm:bottom-5 sm:max-w-max sm:px-0">
-              <div className="pointer-events-auto mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-[20px] border border-white/10 bg-black/34 px-2.5 py-2 shadow-[0_18px_40px_rgba(0,0,0,0.24)] backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={showPreviousImage}
-                  disabled={!previousImage}
-                  title="上一张"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <ChevronLeftIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={showNextImage}
-                  disabled={!nextImage}
-                  title="下一张"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <ChevronRightIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={zoomSelectedImageOut}
-                  title="缩小"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <MagnifyingGlassMinusIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={zoomSelectedImageIn}
-                  title="放大"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <MagnifyingGlassPlusIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={rotateSelectedImageLeft}
-                  title="左转"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <ArrowUturnLeftIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={rotateSelectedImageRight}
-                  title="右转"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <ArrowUturnRightIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={resetSelectedImageView}
-                  title="复位"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <ArrowPathIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <div className="inline-flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-[0.04em] text-white/62">
-                  {previewScale.toFixed(2)}x
-                </div>
-                <button
-                  type="button"
-                  onClick={showSelectedImageOriginal}
-                  disabled={previewUseOriginal}
-                  title="原图"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <PhotoIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyLink(selectedImage)}
-                  title="复制链接"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <LinkIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownload(selectedImage)}
-                  title="下载"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-                >
-                  <ArrowDownOnSquareIcon className="h-[18px] w-[18px] text-white" />
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingId === selectedImage.id}
-                  onClick={() => void handleDelete(selectedImage)}
-                  title={deletingId === selectedImage.id ? "删除中" : "删除"}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-100 transition hover:bg-rose-400/14 disabled:cursor-not-allowed disabled:opacity-65"
-                >
-                  {deletingId === selectedImage.id ? (
-                    <ArrowPathIcon className="h-[18px] w-[18px] animate-spin" />
-                  ) : (
-                    <TrashIcon className="h-[18px] w-[18px]" />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ImageViewerModal
+          key={selectedImage.id}
+          deletingId={deletingId}
+          imageRefreshVersion={imageRefreshVersion}
+          images={images}
+          selectedImage={selectedImage}
+          onClose={() => setSelectedImage(null)}
+          onCopyLink={handleCopyLink}
+          onDelete={handleDelete}
+          onDownload={handleDownload}
+          onSelectImage={setSelectedImage}
+        />
       ) : null}
     </main>
   );
