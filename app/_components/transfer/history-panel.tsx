@@ -35,7 +35,7 @@ export function HistoryPanel({
                 key={image.id}
                 type="button"
                 onClick={() => onOpenImage(image)}
-                className="group overflow-hidden rounded-3xl border border-white/10 bg-black/18 text-left transition hover:-translate-y-0.5 hover:border-white/20"
+                className="group overflow-hidden rounded-3xl border border-white/10 bg-black/18 text-left transition hover:-translate-y-0.5 duration-500 ease-in-out hover:border-white/20"
               >
                 <div className="relative aspect-[0.82] overflow-hidden">
                   <ProgressiveImage
@@ -45,16 +45,16 @@ export function HistoryPanel({
                     sizes="(max-width: 640px) 100vw, (max-width: 960px) 50vw, (max-width: 1280px) 33vw, (max-width: 1680px) 25vw, 20vw"
                     quality={70}
                     decoding="async"
-                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                    className="object-cover transition "
                   />
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.14)_55%,rgba(0,0,0,0.72)_100%)]" />
                   <div className="absolute inset-x-0 bottom-0 p-4">
-                    <div className="line-clamp-1 text-sm text-white/90">
+                    {/* <div className="line-clamp-1 text-sm text-white/90">
                       {image.name}
-                    </div>
-                    <div className="mt-1 text-xs text-white/55">
+                    </div> */}
+                    {/* <div className="text-xs text-right text-white/55">
                       {image.uploadedAtLabel}
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               </button>
