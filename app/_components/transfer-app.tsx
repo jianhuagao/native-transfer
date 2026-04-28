@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 
 type TabKey = "transfer" | "history";
@@ -46,7 +45,6 @@ function isTouchLikeDevice() {
 }
 
 export function TransferApp({ initialAuthorized }: TransferAppProps) {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [password, setPassword] = useState("");
@@ -77,7 +75,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
     let cancelled = false;
 
-    fetch("/api/images", { cache: "no-store", credentials: "same-origin" })
+    fetch("/api/images", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("load failed");
@@ -114,7 +112,6 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
         },
@@ -128,8 +125,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       }
 
       setPassword("");
-      router.refresh();
-      window.location.reload();
+      setHistoryLoading(true);
+      setAuthorized(true);
     } catch {
       setLoginError("网络异常，请稍后重试。");
     } finally {
@@ -140,7 +137,6 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   async function handleLogout() {
     await fetch("/api/auth/logout", {
       method: "POST",
-      credentials: "same-origin",
     });
 
     setAuthorized(false);
@@ -219,10 +215,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   async function refreshImages() {
-    const response = await fetch("/api/images", {
-      cache: "no-store",
-      credentials: "same-origin",
-    });
+    const response = await fetch("/api/images", { cache: "no-store" });
 
     if (!response.ok) {
       throw new Error("refresh failed");
@@ -256,7 +249,6 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         `/api/images/${encodeURIComponent(image.name)}`,
         {
           method: "DELETE",
-          credentials: "same-origin",
         },
       );
 
@@ -316,7 +308,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
               Native Transfer
             </span>
             <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-              私人图片传输站
+              Transfer
             </h1>
             <p className="text-sm text-white/50">输入密码进入</p>
           </div>

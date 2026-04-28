@@ -1,7 +1,21 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const UPLOAD_DIR = path.join(process.cwd(), "storage", "uploads");
+function resolveUploadDir() {
+  const customDir = process.env.UPLOAD_DIR?.trim();
+
+  if (customDir) {
+    return path.resolve(/* turbopackIgnore: true */ customDir);
+  }
+
+  if (process.env.VERCEL) {
+    return path.join("/tmp", "native-transfer", "uploads");
+  }
+
+  return path.join(process.cwd(), "storage", "uploads");
+}
+
+export const UPLOAD_DIR = resolveUploadDir();
 
 export type StoredImage = {
   id: string;

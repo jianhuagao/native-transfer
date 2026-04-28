@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { AUTH_COOKIE_NAME } from "@/app/_lib/auth";
@@ -5,8 +6,8 @@ import { AUTH_COOKIE_NAME } from "@/app/_lib/auth";
 export const runtime = "nodejs";
 
 export async function POST() {
-  const response = NextResponse.json({ ok: true });
-  response.cookies.delete(AUTH_COOKIE_NAME);
+  const cookieStore = await cookies();
+  cookieStore.delete(AUTH_COOKIE_NAME);
 
-  return response;
+  return NextResponse.json({ ok: true });
 }
