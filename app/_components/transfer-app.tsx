@@ -3,8 +3,14 @@
 import { upload } from "@vercel/blob/client";
 import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
 import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
-import Image from "next/image";
-import { startTransition, useEffect, useRef, useState } from "react";
+import Image, { type StaticImageData } from "next/image";
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import { SuccessConfetti } from "@/app/_components/success-confetti";
 
 type TabKey = "transfer" | "history";
@@ -25,10 +31,95 @@ type TransferAppProps = {
 
 type ConfettiKind = "upload" | "copy";
 
+const HISTORY_GRID_STYLE = {
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 17rem), 1fr))",
+};
+
+const IMAGE_PLACEHOLDER =
+  "data:image/svg+xml;charset=utf-8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#182131" />
+          <stop offset="50%" stop-color="#22314a" />
+          <stop offset="100%" stop-color="#111827" />
+        </linearGradient>
+        <filter id="b">
+          <feGaussianBlur stdDeviation="4" />
+        </filter>
+      </defs>
+      <rect width="48" height="48" fill="url(#g)" filter="url(#b)" />
+    </svg>
+  `) as `data:image/${string}`;
+
+type ProgressiveImageProps = ComponentProps<typeof Image>;
+type ProgressiveImageTransition = {
+  overlayClassName?: string;
+  imageClassName?: string;
+};
+
+function getImageSrcValue(src: ProgressiveImageProps["src"]) {
+  if (typeof src === "string") {
+    return src;
+  }
+
+  if ("default" in src) {
+    return src.default.src;
+  }
+
+  return (src as StaticImageData).src;
+}
+
 const tabs: { key: TabKey; label: string; description: string }[] = [
   { key: "transfer", label: "传输", description: "" },
   { key: "history", label: "内容", description: "" },
 ];
+
+function ProgressiveImage({
+  alt,
+  className,
+  loading = "lazy",
+  onLoad,
+  placeholder = IMAGE_PLACEHOLDER,
+  src,
+  transition,
+  ...props
+}: ProgressiveImageProps & { transition?: ProgressiveImageTransition }) {
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const currentSrc = getImageSrcValue(src);
+  const loaded = loadedSrc === currentSrc;
+  const overlayTransitionClassName =
+    transition?.overlayClassName ?? "duration-500";
+  const imageTransitionClassName =
+    transition?.imageClassName ?? "duration-700 ease-out";
+
+  return (
+    <>
+      <div
+        className={`absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_48%,rgba(0,0,0,0.24))] transition ${overlayTransitionClassName} ${
+          loaded ? "opacity-0" : "opacity-100"
+        }`}
+      />
+      <Image
+        {...props}
+        alt={alt}
+        loading={loading}
+        placeholder={placeholder}
+        src={src}
+        onLoad={(event) => {
+          setLoadedSrc(currentSrc);
+          onLoad?.(event);
+        }}
+        className={`${className ?? ""} transition ${imageTransitionClassName} ${
+          loaded
+            ? "scale-100 opacity-100 blur-0"
+            : "scale-[1.02] opacity-0 blur-xl"
+        }`}
+      />
+    </>
+  );
+}
 
 function formatFileSize(size: number) {
   if (size < 1024) {
@@ -622,7 +713,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                     >
                       {recentImageUrl ? (
                         <>
-                          <Image
+                          <ProgressiveImage
                             src={recentImageUrl}
                             alt={recentImageName || "Uploaded image"}
                             fill
@@ -689,9 +780,9 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
             </section>
           ) : (
             <section>
-              <article className="rounded-[28px] border border-white/10 bg-white/6 p-4 sm:p-5">
+              <article className="rounded-[28px] sm:border border-white/10 sm:bg-white/6 p-0 sm:p-5">
                 {historyLoading ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-4" style={HISTORY_GRID_STYLE}>
                     {Array.from({ length: 6 }).map((_, index) => (
                       <div
                         key={index}
@@ -700,7 +791,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                     ))}
                   </div>
                 ) : images.length > 0 ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-4" style={HISTORY_GRID_STYLE}>
                     {images.map((image) => (
                       <button
                         key={image.id}
@@ -709,12 +800,13 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                         className="group overflow-hidden rounded-[24px] border border-white/10 bg-black/18 text-left transition hover:-translate-y-0.5 hover:border-white/20"
                       >
                         <div className="relative aspect-[0.82] overflow-hidden">
-                          <Image
+                          <ProgressiveImage
                             src={image.url}
                             alt={image.name}
                             fill
-                            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                            sizes="(max-width: 640px) 100vw, (max-width: 960px) 50vw, (max-width: 1280px) 33vw, (max-width: 1680px) 25vw, 20vw"
                             quality={70}
+                            decoding="async"
                             className="object-cover transition duration-500 group-hover:scale-[1.03]"
                           />
                           <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.14)_55%,rgba(0,0,0,0.72)_100%)]" />
@@ -772,12 +864,18 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
             </div>
 
             <div className="relative h-full w-full overflow-hidden">
-              <Image
+              <ProgressiveImage
                 src={selectedImage.url}
                 alt={selectedImage.name}
                 fill
                 sizes="100vw"
                 quality={78}
+                loading="eager"
+                decoding="async"
+                transition={{
+                  overlayClassName: "duration-200",
+                  imageClassName: "duration-300 ease-out",
+                }}
                 className="object-contain"
               />
             </div>
