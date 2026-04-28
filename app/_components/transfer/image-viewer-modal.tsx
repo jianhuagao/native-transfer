@@ -115,7 +115,7 @@ export function ImageViewerModal({
       onClick={onClose}
     >
       <div
-        className="relative h-[100dvh] w-full overflow-hidden bg-[#03060c]/96 shadow-[0_30px_120px_rgba(0,0,0,0.7)] sm:h-[94dvh] sm:max-w-[min(96vw,1600px)] sm:rounded-[28px] sm:border sm:border-white/10"
+        className="relative h-dvh w-full overflow-hidden bg-[#03060c]/96 shadow-[0_30px_120px_rgba(0,0,0,0.7)] sm:h-[94dvh] sm:max-w-[min(96vw,1600px)] sm:rounded-[28px] sm:border sm:border-white/10"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 bg-[linear-gradient(180deg,rgba(0,0,0,0.6),rgba(0,0,0,0))] p-4 sm:p-5">
@@ -124,7 +124,8 @@ export function ImageViewerModal({
               {selectedImage.name}
             </div>
             <div className="mt-1 text-xs text-white/55">
-              {selectedImage.uploadedAtLabel} · {formatFileSize(selectedImage.size)}
+              {selectedImage.uploadedAtLabel} ·{" "}
+              {formatFileSize(selectedImage.size)}
             </div>
           </div>
           <div className="pointer-events-auto shrink-0">
@@ -183,7 +184,10 @@ export function ImageViewerModal({
                   src={
                     previewUseOriginal
                       ? selectedImage.originalUrl
-                      : withRefreshVersion(selectedImage.url, imageRefreshVersion)
+                      : withRefreshVersion(
+                          selectedImage.url,
+                          imageRefreshVersion,
+                        )
                   }
                   alt={selectedImage.name}
                   onLoad={() => setSelectedImageLoading(false)}
@@ -209,7 +213,7 @@ export function ImageViewerModal({
               title="上一张"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
             >
-              <ChevronLeftIcon className="h-[18px] w-[18px] text-white" />
+              <ChevronLeftIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -218,7 +222,7 @@ export function ImageViewerModal({
               title="下一张"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
             >
-              <ChevronRightIcon className="h-[18px] w-[18px] text-white" />
+              <ChevronRightIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -226,7 +230,7 @@ export function ImageViewerModal({
               title="缩小"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <MagnifyingGlassMinusIcon className="h-[18px] w-[18px] text-white" />
+              <MagnifyingGlassMinusIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -234,7 +238,7 @@ export function ImageViewerModal({
               title="放大"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <MagnifyingGlassPlusIcon className="h-[18px] w-[18px] text-white" />
+              <MagnifyingGlassPlusIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -242,7 +246,7 @@ export function ImageViewerModal({
               title="左转"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <ArrowUturnLeftIcon className="h-[18px] w-[18px] text-white" />
+              <ArrowUturnLeftIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -250,7 +254,7 @@ export function ImageViewerModal({
               title="右转"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <ArrowUturnRightIcon className="h-[18px] w-[18px] text-white" />
+              <ArrowUturnRightIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -258,7 +262,7 @@ export function ImageViewerModal({
               title="复位"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <ArrowPathIcon className="h-[18px] w-[18px] text-white" />
+              <ArrowPathIcon className="size-4.5 text-white" />
             </button>
             <div className="inline-flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-[0.04em] text-white/62">
               {previewScale.toFixed(2)}x
@@ -270,7 +274,7 @@ export function ImageViewerModal({
               title="原图"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
             >
-              <PhotoIcon className="h-[18px] w-[18px] text-white" />
+              <PhotoIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -278,7 +282,7 @@ export function ImageViewerModal({
               title="复制链接"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <LinkIcon className="h-[18px] w-[18px] text-white" />
+              <LinkIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -286,7 +290,7 @@ export function ImageViewerModal({
               title="下载"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
             >
-              <ArrowDownOnSquareIcon className="h-[18px] w-[18px] text-white" />
+              <ArrowDownOnSquareIcon className="size-4.5 text-white" />
             </button>
             <button
               type="button"
@@ -296,9 +300,9 @@ export function ImageViewerModal({
               className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-100 transition hover:bg-rose-400/14 disabled:cursor-not-allowed disabled:opacity-65"
             >
               {deletingId === selectedImage.id ? (
-                <ArrowPathIcon className="h-[18px] w-[18px] animate-spin" />
+                <ArrowPathIcon className="size-4.5 animate-spin" />
               ) : (
-                <TrashIcon className="h-[18px] w-[18px]" />
+                <TrashIcon className="size-4.5" />
               )}
             </button>
           </div>

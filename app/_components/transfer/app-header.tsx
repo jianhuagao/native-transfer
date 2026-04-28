@@ -17,7 +17,7 @@ export function AppHeader({
     <>
       <header className="mb-6 flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-[-0.05em] text-white sm:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tighter text-white sm:text-3xl">
             Native Transfer
           </h1>
           <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-white/45">
@@ -35,9 +35,7 @@ export function AppHeader({
           >
             <svg
               viewBox="0 0 24 24"
-              className={`h-[18px] w-[18px] ${
-                refreshingImages ? "animate-spin" : ""
-              }`}
+              className={`size-4.5 ${refreshingImages ? "animate-spin" : ""}`}
               fill="currentColor"
               aria-hidden="true"
             >

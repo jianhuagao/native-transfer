@@ -24,7 +24,7 @@ export function HistoryPanel({
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="aspect-[0.82] animate-pulse rounded-[24px] border border-white/8 bg-white/7"
+                className="aspect-[0.82] animate-pulse rounded-3xl border border-white/8 bg-white/7"
               />
             ))}
           </div>
@@ -35,7 +35,7 @@ export function HistoryPanel({
                 key={image.id}
                 type="button"
                 onClick={() => onOpenImage(image)}
-                className="group overflow-hidden rounded-[24px] border border-white/10 bg-black/18 text-left transition hover:-translate-y-0.5 hover:border-white/20"
+                className="group overflow-hidden rounded-3xl border border-white/10 bg-black/18 text-left transition hover:-translate-y-0.5 hover:border-white/20"
               >
                 <div className="relative aspect-[0.82] overflow-hidden">
                   <ProgressiveImage
@@ -61,7 +61,7 @@ export function HistoryPanel({
             ))}
           </div>
         ) : (
-          <div className="flex min-h-80 flex-col items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-black/18 px-6 text-center">
+          <div className="flex min-h-80 flex-col items-center justify-center rounded-3xl border border-dashed border-white/12 bg-black/18 px-6 text-center">
             <h3 className="text-xl font-medium text-white">暂无图片</h3>
           </div>
         )}

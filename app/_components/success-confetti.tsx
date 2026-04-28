@@ -21,8 +21,8 @@ export function SuccessConfetti({
   }
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[80] overflow-hidden">
-      <div className="absolute left-1/2 top-1/2 h-[min(72vw,34rem)] w-[min(72vw,34rem)] -translate-x-1/2 -translate-y-1/2 sm:h-[34rem] sm:w-[34rem]">
+    <div className="pointer-events-none fixed inset-0 z-80 overflow-hidden">
+      <div className="absolute left-1/2 top-1/2 size-[min(72vw,34rem)] -translate-x-1/2 -translate-y-1/2 sm:size-136">
         <Lottie
           key={playToken}
           animationData={animationData}

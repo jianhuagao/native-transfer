@@ -221,7 +221,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(89,168,255,0.18),transparent_28%),radial-gradient(circle_at_85%_12%,rgba(237,244,255,0.08),transparent_18%),radial-gradient(circle_at_20%_80%,rgba(50,110,255,0.16),transparent_26%),linear-gradient(180deg,#03060c_0%,#080b12_50%,#020304_100%)]" />
       <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-220 -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
 
-      <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full flex-col rounded-[32px] border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
+      <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full flex-col rounded-4xl border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
         <AppHeader
           imageCount={images.length}
           refreshingImages={refreshingImages}

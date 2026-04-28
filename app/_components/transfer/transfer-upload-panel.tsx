@@ -144,8 +144,8 @@ export function TransferUploadPanel({
   }, []);
 
   return (
-    <section className="flex min-h-[32rem] items-center justify-center">
-      <article className="w-full max-w-3xl rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.13),rgba(255,255,255,0.03))] p-6 sm:p-10">
+    <section className="flex min-h-128 items-center justify-center">
+      <article className="w-full max-w-3xl rounded-4xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.13),rgba(255,255,255,0.03))] p-6 sm:p-10">
         <div className="mb-8 flex items-center justify-between gap-3">
           <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">
             上传原图
@@ -164,7 +164,7 @@ export function TransferUploadPanel({
         />
 
         <div className="flex flex-col items-center justify-center gap-8 py-4">
-          <div className="relative h-[19rem] w-[19rem] sm:h-[24rem] sm:w-[24rem]">
+          <div className="relative size-76 sm:size-96">
             {!recentImageUrl ? (
               <svg
                 className="pointer-events-none absolute inset-0 z-20 -rotate-90 overflow-visible"
@@ -210,7 +210,9 @@ export function TransferUploadPanel({
             <button
               type="button"
               onClick={
-                recentImageUrl && !uploading ? handleContinueUpload : triggerPicker
+                recentImageUrl && !uploading
+                  ? handleContinueUpload
+                  : triggerPicker
               }
               disabled={uploading}
               className="absolute inset-[1.7rem] z-10 overflow-hidden rounded-full border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),rgba(255,255,255,0.02)_58%),rgba(0,0,0,0.28)] transition hover:border-cyan-200/35 hover:bg-black/30 disabled:cursor-not-allowed"
