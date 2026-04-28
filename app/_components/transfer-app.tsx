@@ -54,13 +54,16 @@ function buildUploadPath(fileName: string) {
   const dotIndex = fileName.lastIndexOf(".");
   const hasExtension = dotIndex > 0;
   const rawBaseName = hasExtension ? fileName.slice(0, dotIndex) : fileName;
-  const extension = hasExtension ? fileName.slice(dotIndex).toLowerCase() : ".jpg";
-  const baseName = rawBaseName
-    .normalize("NFKD")
-    .replace(/[^\w.-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase() || "image";
+  const extension = hasExtension
+    ? fileName.slice(dotIndex).toLowerCase()
+    : ".jpg";
+  const baseName =
+    rawBaseName
+      .normalize("NFKD")
+      .replace(/[^\w.-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase() || "image";
 
   const stamp = [
     now.getFullYear().toString(),
@@ -218,7 +221,9 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       await refreshImages();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "上传失败，请检查网络或服务状态。";
+        error instanceof Error
+          ? error.message
+          : "上传失败，请检查网络或服务状态。";
       setUploadStatus(message || "上传失败，请检查网络或服务状态。");
     } finally {
       setUploading(false);
@@ -292,6 +297,14 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     window.open(targetUrl, "_blank", "noopener,noreferrer");
   }
 
+  async function handleCopyLink(image: StoredImage) {
+    try {
+      await navigator.clipboard.writeText(image.originalUrl);
+    } catch {
+      window.prompt("复制链接", image.originalUrl);
+    }
+  }
+
   const selectedImageIndex = selectedImage
     ? images.findIndex((image) => image.id === selectedImage.id)
     : -1;
@@ -314,6 +327,40 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     }
   }
 
+  useEffect(() => {
+    if (!selectedImage) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedImage(null);
+      }
+
+      if (event.key === "ArrowLeft" && previousImage) {
+        setSelectedImage(previousImage);
+      }
+
+      if (event.key === "ArrowRight" && nextImage) {
+        setSelectedImage(nextImage);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [nextImage, previousImage, selectedImage]);
+
   if (!authorized) {
     return (
       <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
@@ -321,25 +368,23 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[linear-gradient(180deg,rgba(255,255,255,0.15),transparent)] blur-3xl" />
 
         <section className="relative w-full max-w-md rounded-4xl border border-white/12 bg-white/8 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-3xl">
-          <div className="mb-8 space-y-4">
+          <div className="mb-4 space-y-4">
             <span className="inline-flex rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs tracking-[0.24em] text-white/60 uppercase">
               Native Transfer
             </span>
             <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
               Transfer
             </h1>
-            <p className="text-sm text-white/50">输入密码进入</p>
           </div>
 
           <form className="space-y-4" onSubmit={handleLogin}>
             <label className="block space-y-2">
-              <span className="text-sm text-white/65">访问密码</span>
               <input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-cyan-300/40 focus:bg-black/40"
-                placeholder="请输入密码"
+                placeholder="password"
                 autoComplete="current-password"
               />
             </label>
@@ -353,7 +398,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
               disabled={authLoading}
               className="w-full rounded-2xl bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-3 text-sm font-medium text-slate-900 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {authLoading ? "验证中..." : "进入站点"}
+              {authLoading ? "loading..." : "enter"}
             </button>
           </form>
         </section>
@@ -561,7 +606,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
               </article>
             </section>
           ) : (
-            <section className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+            <section>
               <article className="rounded-[28px] border border-white/10 bg-white/6 p-4 sm:p-5">
                 {historyLoading ? (
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -606,94 +651,62 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                 ) : (
                   <div className="flex min-h-80 flex-col items-center justify-center rounded-[24px] border border-dashed border-white/12 bg-black/18 px-6 text-center">
                     <h3 className="text-xl font-medium text-white">暂无图片</h3>
-                    <p className="mt-3 max-w-sm text-sm text-white/50">
-                      上传后会显示在这里
-                    </p>
                   </div>
                 )}
               </article>
-
-              <aside className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04))] p-6">
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">
-                    历史
-                  </h2>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
-                    <div className="text-xs uppercase tracking-[0.24em] text-white/42">
-                      排序
-                    </div>
-                    <div className="mt-2 text-sm text-white/72">最新在前</div>
-                  </div>
-                  <div className="rounded-3xl border border-white/10 bg-black/18 p-4">
-                    <div className="text-xs uppercase tracking-[0.24em] text-white/42">
-                      总数
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-white">
-                      {images.length}
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-white/10 bg-black/18 p-4 text-sm text-white/52">
-                    点击预览
-                    <br />
-                    长按保存原图
-                  </div>
-                </div>
-              </aside>
             </section>
           )}
         </div>
       </section>
 
       {selectedImage ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/72 p-3 backdrop-blur-xl sm:items-center sm:p-6">
-          <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#06090f]/95 shadow-[0_30px_120px_rgba(0,0,0,0.7)]">
-            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
-              <div className="min-w-0">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/82 p-0 backdrop-blur-xl sm:p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="relative h-[100dvh] w-full overflow-hidden bg-[#03060c]/96 shadow-[0_30px_120px_rgba(0,0,0,0.7)] sm:h-[94dvh] sm:max-w-[min(96vw,1600px)] sm:rounded-[28px] sm:border sm:border-white/10"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 bg-[linear-gradient(180deg,rgba(0,0,0,0.6),rgba(0,0,0,0))] p-4 sm:p-5">
+              <div className="min-w-0 rounded-full border border-white/10 bg-black/30 px-3 py-2 pr-4 backdrop-blur-md">
                 <div className="truncate text-sm font-medium text-white">
                   {selectedImage.name}
                 </div>
-                <div className="mt-1 text-xs text-white/48">
+                <div className="mt-1 text-xs text-white/55">
                   {selectedImage.uploadedAtLabel} ·{" "}
                   {formatFileSize(selectedImage.size)}
                 </div>
               </div>
-              <div className="shrink-0">
+              <div className="pointer-events-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setSelectedImage(null)}
-                  className="rounded-full border border-white/10 bg-white/8 px-3 py-2 text-sm text-white/74 transition hover:bg-white/12"
+                  className="rounded-full border border-white/10 bg-black/36 px-4 py-2 text-sm text-white/82 backdrop-blur-md transition hover:bg-black/52"
                 >
                   关闭
                 </button>
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-6">
-              <div className="relative h-[68vh] rounded-[22px] border border-white/8 bg-black/25 p-2">
-                <div className="relative h-full overflow-hidden rounded-[14px]">
-                  <Image
-                    src={selectedImage.originalUrl}
-                    alt={selectedImage.name}
-                    fill
-                    unoptimized
-                    sizes="100vw"
-                    className="object-contain"
-                  />
-                </div>
-              </div>
+            <div className="relative h-full w-full overflow-hidden">
+              <Image
+                src={selectedImage.originalUrl}
+                alt={selectedImage.name}
+                fill
+                unoptimized
+                sizes="100vw"
+                className="object-contain"
+              />
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:px-6">
-              <p className="text-sm text-white/46">桌面下载，手机长按保存</p>
-              <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+            <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-4 sm:px-5 sm:pb-5">
+              <div className="flex flex-wrap items-center gap-3 rounded-[24px] border border-white/10 bg-black/34 p-3 backdrop-blur-md">
                 <button
                   type="button"
                   onClick={showPreviousImage}
                   disabled={!previousImage}
-                  className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/74 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/78 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   上一张
                 </button>
@@ -701,22 +714,29 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
                   type="button"
                   onClick={showNextImage}
                   disabled={!nextImage}
-                  className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/74 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/78 transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   下一张
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDownload(selectedImage)}
-                  className="col-span-2 rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-2 text-sm font-medium text-slate-900 transition hover:brightness-105 sm:col-span-1"
+                  className="rounded-full bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(154,220,255,0.82))] px-4 py-2 text-sm font-medium text-slate-900 transition hover:brightness-105"
                 >
                   下载 / 原图
                 </button>
                 <button
                   type="button"
+                  onClick={() => void handleCopyLink(selectedImage)}
+                  className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm text-white/78 transition hover:bg-white/12"
+                >
+                  复制链接
+                </button>
+                <button
+                  type="button"
                   disabled={deletingId === selectedImage.id}
                   onClick={() => void handleDelete(selectedImage)}
-                  className="col-span-2 rounded-full border border-rose-300/18 bg-rose-400/10 px-4 py-2 text-sm text-rose-100 transition hover:bg-rose-400/16 disabled:cursor-not-allowed disabled:opacity-65 sm:col-span-1"
+                  className="rounded-full border border-rose-300/18 bg-rose-400/10 px-4 py-2 text-sm text-rose-100 transition hover:bg-rose-400/16 disabled:cursor-not-allowed disabled:opacity-65"
                 >
                   {deletingId === selectedImage.id ? "删除中..." : "删除"}
                 </button>
