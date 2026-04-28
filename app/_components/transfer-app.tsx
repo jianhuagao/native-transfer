@@ -302,7 +302,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(128,191,255,0.22),transparent_35%),radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(180deg,#050816_0%,#080b12_45%,#030406_100%)]" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[linear-gradient(180deg,rgba(255,255,255,0.15),transparent)] blur-3xl" />
 
-        <section className="relative w-full max-w-md rounded-[32px] border border-white/12 bg-white/8 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-3xl">
+        <section className="relative w-full max-w-md rounded-4xl border border-white/12 bg-white/8 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-3xl">
           <div className="mb-8 space-y-4">
             <span className="inline-flex rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs tracking-[0.24em] text-white/60 uppercase">
               Native Transfer
@@ -346,7 +346,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(89,168,255,0.18),transparent_28%),radial-gradient(circle_at_85%_12%,rgba(237,244,255,0.08),transparent_18%),radial-gradient(circle_at_20%_80%,rgba(50,110,255,0.16),transparent_26%),linear-gradient(180deg,#03060c_0%,#080b12_50%,#020304_100%)]" />
-      <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-[55rem] -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
+      <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-220 -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
 
       <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-7xl flex-col rounded-[32px] border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
         <header className="mb-6 flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-center lg:justify-between">
