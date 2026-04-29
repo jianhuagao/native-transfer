@@ -1,33 +1,37 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 
 import { isAuthorized } from "@/app/_lib/auth";
-import { ALLOWED_UPLOAD_CONTENT_TYPES } from "@/app/_lib/media";
+import { handleUploadRequest, saveUpload } from "@/app/_lib/storage";
 
 export const runtime = "nodejs";
 
+async function handleFormDataUpload(request: Request) {
+  if (!(await isAuthorized())) {
+    throw new Error("未授权");
+  }
+
+  const formData = await request.formData();
+  const file = formData.get("file");
+
+  if (!(file instanceof File)) {
+    throw new Error("未找到上传文件");
+  }
+
+  const pathname = await saveUpload(file);
+
+  return { pathname };
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
-  const body = (await request.json()) as HandleUploadBody;
-
   try {
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async () => {
-        if (!(await isAuthorized())) {
-          throw new Error("未授权");
-        }
+    const contentType = request.headers.get("content-type") ?? "";
 
-        return {
-          allowedContentTypes: ALLOWED_UPLOAD_CONTENT_TYPES,
-          addRandomSuffix: false,
-          maximumSizeInBytes: 1024 * 1024 * 200,
-        };
-      },
-      onUploadCompleted: async () => {
-        return;
-      },
-    });
+    if (contentType.includes("multipart/form-data")) {
+      return NextResponse.json(await handleFormDataUpload(request));
+    }
+
+    const body = await request.json();
+    const jsonResponse = await handleUploadRequest(request, body, isAuthorized);
 
     return NextResponse.json(jsonResponse);
   } catch (error) {

@@ -1,12 +1,12 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
 import { PlusIcon } from "@heroicons/react/24/solid";
 import {
   getMediaKind,
   MEDIA_INPUT_ACCEPT,
   type MediaKind,
 } from "@/app/_lib/media";
+import { uploadMedia } from "@/app/_lib/client-upload";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
   buildUploadPath,
@@ -119,14 +119,10 @@ export function TransferUploadPanel({
     try {
       const mediaType = getMediaKind(file.type, file.name);
 
-      await upload(buildUploadPath(file.name, file.type), file, {
-        access: "private",
-        handleUploadUrl: "/api/images/upload",
-        multipart: true,
-        contentType: file.type || undefined,
-        onUploadProgress: ({ percentage }) => {
-          setUploadProgress(Math.round(percentage));
-        },
+      await uploadMedia({
+        file,
+        pathname: buildUploadPath(file.name, file.type),
+        onProgress: setUploadProgress,
       });
 
       const previewUrl = URL.createObjectURL(file);

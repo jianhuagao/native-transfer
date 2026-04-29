@@ -2,7 +2,7 @@
 
 一个用于个人或小范围团队的图片传输站。
 
-它提供一个带密码保护的 Web 界面，支持上传原图、查看历史图片、复制链接、下载原图和删除文件。图片存储基于 Vercel Blob，前端使用 Next.js App Router 构建，适合部署成一个轻量的私有传图入口。
+它提供一个带密码保护的 Web 界面，支持上传原图、查看历史图片、复制链接、下载原图和删除文件。当前默认存储提供方是 Vercel Blob，存储访问已经收敛在中间层里，前端使用 Next.js App Router 构建，适合部署成一个轻量的私有传图入口。
 
 ![libran](./public/project/c1.jpg)
 ![libran](./public/project/c2.jpg)
@@ -11,7 +11,7 @@
 ## 功能
 
 - 密码登录，未授权用户不能访问图片列表和原图下载
-- 上传图片到 Vercel Blob
+- 上传图片到已配置的存储提供方
 - 保留原图，不压缩、不转码
 - 历史图片列表展示
 - 图片大图预览
@@ -23,7 +23,7 @@
 - Next.js 16
 - React 19
 - Tailwind CSS 4
-- Vercel Blob
+- 存储中间层，默认 provider 为 Vercel Blob
 
 ## 环境变量
 
@@ -31,15 +31,21 @@
 
 ```env
 TRANSFER_PASSWORD=change-this-password
+STORAGE_PROVIDER=vercel-blob
+NEXT_PUBLIC_STORAGE_UPLOAD_MODE=vercel-blob-client
+STORAGE_ACCESS=private
+STORAGE_PREFIX=uploads/
 BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx
-BLOB_ACCESS=private
 ```
 
 说明：
 
 - `TRANSFER_PASSWORD`：登录页面使用的访问密码
+- `STORAGE_PROVIDER`：存储提供方，当前内置 `vercel-blob` 和 `local`
+- `NEXT_PUBLIC_STORAGE_UPLOAD_MODE`：上传模式。Vercel Blob 使用 `vercel-blob-client`，本地磁盘可用 `form-data`
+- `STORAGE_ACCESS`：可选，支持 `private` 或 `public`，默认是 `private`
+- `STORAGE_PREFIX`：可选，存储路径前缀，默认是 `uploads/`
 - `BLOB_READ_WRITE_TOKEN`：Vercel Blob 读写令牌
-- `BLOB_ACCESS`：可选，支持 `private` 或 `public`，默认是 `private`
 
 推荐默认使用 `private`。当前实现里，图片列表和原图访问都要求登录态；应用内部预览图通过带 token 的接口地址加载。
 
@@ -67,11 +73,20 @@ pnpm typecheck
 推荐部署到 Vercel：
 
 1. 创建一个 Blob Store，并拿到 `BLOB_READ_WRITE_TOKEN`
-2. 在项目环境变量中配置 `TRANSFER_PASSWORD`、`BLOB_READ_WRITE_TOKEN`
-3. 如有需要，额外设置 `BLOB_ACCESS=private`
+2. 在项目环境变量中配置 `TRANSFER_PASSWORD`、`STORAGE_PROVIDER=vercel-blob`、`BLOB_READ_WRITE_TOKEN`
+3. 如有需要，额外设置 `STORAGE_ACCESS=private`
 4. 部署项目
 
-上传接口目前仅允许 `image/*`，单文件大小上限为 `200MB`。
+上传接口目前允许 `image/*` 与 `video/*`，单文件大小上限为 `200MB`。
+
+如果要切到本地磁盘存储，可以使用：
+
+```env
+STORAGE_PROVIDER=local
+NEXT_PUBLIC_STORAGE_UPLOAD_MODE=form-data
+```
+
+`local` provider 会把文件写入项目根目录的 `storage` 文件夹。
 
 ## 目录结构
 

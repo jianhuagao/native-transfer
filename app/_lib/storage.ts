@@ -1,12 +1,18 @@
-import { del, get, list, put, type BlobAccessType } from "@vercel/blob";
+import "server-only";
+
 import path from "node:path";
 import { createPreviewToken } from "@/app/_lib/auth";
 import {
+  ALLOWED_UPLOAD_CONTENT_TYPES,
   getDefaultExtension,
   getMediaKind,
   getMediaMimeType,
   type MediaKind,
 } from "@/app/_lib/media";
+import {
+  getStorageProvider,
+  type StorageAccess,
+} from "@/app/_lib/storage-providers";
 
 export type StoredImage = {
   id: string;
@@ -65,8 +71,12 @@ function sanitizeBaseName(name: string) {
     .toLowerCase();
 }
 
-function getBlobAccess(): BlobAccessType {
-  const access = process.env.BLOB_ACCESS?.trim().toLowerCase();
+const MAX_UPLOAD_SIZE_IN_BYTES = 1024 * 1024 * 200;
+
+function getStorageAccess(): StorageAccess {
+  const access = (process.env.STORAGE_ACCESS ?? process.env.BLOB_ACCESS)
+    ?.trim()
+    .toLowerCase();
 
   if (access === "public" || access === "private") {
     return access;
@@ -75,8 +85,8 @@ function getBlobAccess(): BlobAccessType {
   return "private";
 }
 
-function getBlobPrefix() {
-  return "uploads/";
+function getStoragePrefix() {
+  return process.env.STORAGE_PREFIX?.trim() || "uploads/";
 }
 
 function parseStorageCapacity(value?: string | null) {
@@ -126,46 +136,64 @@ function decodePathname(name: string) {
   }
 }
 
+function assertUploadFileAllowed(file: File) {
+  if (file.size > MAX_UPLOAD_SIZE_IN_BYTES) {
+    throw new Error("单文件大小不能超过 200MB");
+  }
+
+  if (
+    file.type &&
+    !file.type.startsWith("image/") &&
+    !file.type.startsWith("video/")
+  ) {
+    throw new Error("仅支持上传图片或视频文件");
+  }
+}
+
 export async function saveUpload(file: File) {
+  assertUploadFileAllowed(file);
+
   const now = new Date();
   const originalName = file.name || "media";
   const extension =
     path.extname(originalName).toLowerCase() || getDefaultExtension(file.type);
   const baseName =
     sanitizeBaseName(path.basename(originalName, extension)) || "media";
-  const pathname = `${getBlobPrefix()}${formatStamp(now)}-${baseName}${extension}`;
+  const pathname = `${getStoragePrefix()}${formatStamp(now)}-${baseName}${extension}`;
+  const storageProvider = await getStorageProvider();
 
-  const blob = await put(pathname, file, {
-    access: getBlobAccess(),
+  const storedObject = await storageProvider.put(pathname, file, {
+    access: getStorageAccess(),
     addRandomSuffix: false,
     contentType: file.type || undefined,
   });
 
-  return blob.pathname;
+  return storedObject.pathname;
 }
 
 export async function listImages(): Promise<StoredImage[]> {
-  const { blobs } = await list({
-    prefix: getBlobPrefix(),
+  const storageProvider = await getStorageProvider();
+  const objects = await storageProvider.list({
+    prefix: getStoragePrefix(),
     limit: 1000,
   });
 
-  return blobs
-    .map((blob) => {
-      const encodedPath = encodeURIComponent(blob.pathname);
-      const previewToken = createPreviewToken(blob.pathname);
-      const mimeType = getMediaMimeType(null, blob.pathname);
+  return objects
+    .map((object) => {
+      const encodedPath = encodeURIComponent(object.pathname);
+      const previewToken = createPreviewToken(object.pathname);
+      const mimeType = getMediaMimeType(object.contentType, object.pathname);
 
       return {
-        id: blob.pathname,
-        name: path.basename(blob.pathname),
-        mediaType: getMediaKind(mimeType, blob.pathname),
+        id: object.pathname,
+        name: path.basename(object.pathname),
+        mediaType: getMediaKind(mimeType, object.pathname),
         mimeType,
         url: `/api/images/${encodedPath}?preview=1&token=${previewToken}`,
         originalUrl: `/api/images/${encodedPath}`,
-        uploadedAt: blob.uploadedAt.toISOString(),
-        uploadedAtLabel: formatLabel(blob.uploadedAt),
-        size: blob.size,
+        uploadedAt: object.uploadedAt.toISOString(),
+        uploadedAtLabel: formatLabel(object.uploadedAt),
+        size: object.size,
       };
     })
     .sort((left, right) => {
@@ -178,12 +206,13 @@ export async function listImages(): Promise<StoredImage[]> {
 
 export async function readImage(name: string, range?: string | null) {
   const pathname = decodePathname(name);
-  const result = await get(pathname, {
-    access: getBlobAccess(),
-    headers: range ? { Range: range } : undefined,
+  const storageProvider = await getStorageProvider();
+  const result = await storageProvider.read(pathname, {
+    access: getStorageAccess(),
+    range,
   });
 
-  const statusCode = result?.statusCode as number | undefined;
+  const statusCode = result?.statusCode;
 
   if (
     !result ||
@@ -197,9 +226,9 @@ export async function readImage(name: string, range?: string | null) {
 
   return {
     stream: result.stream,
-    fileName: path.basename(result.blob.pathname),
-    mimeType: result.blob.contentType,
-    size: result.blob.size,
+    fileName: path.basename(result.pathname),
+    mimeType: getMediaMimeType(result.contentType, result.pathname),
+    size: result.size,
     statusCode: contentRange ? 206 : statusCode,
     acceptRanges: result.headers.get("accept-ranges"),
     contentLength: result.headers.get("content-length"),
@@ -209,5 +238,34 @@ export async function readImage(name: string, range?: string | null) {
 
 export async function removeImage(name: string) {
   const pathname = decodePathname(name);
-  await del(pathname);
+  const storageProvider = await getStorageProvider();
+  await storageProvider.delete(pathname);
+}
+
+export async function handleUploadRequest(
+  request: Request,
+  body: unknown,
+  authorize: () => Promise<boolean>,
+) {
+  const storageProvider = await getStorageProvider();
+
+  if (!storageProvider.handleClientUpload) {
+    throw new Error("当前存储提供方不支持客户端直传。");
+  }
+
+  return storageProvider.handleClientUpload({
+    body,
+    request,
+    getUploadConstraints: async () => {
+      if (!(await authorize())) {
+        throw new Error("未授权");
+      }
+
+      return {
+        allowedContentTypes: ALLOWED_UPLOAD_CONTENT_TYPES,
+        addRandomSuffix: false,
+        maximumSizeInBytes: MAX_UPLOAD_SIZE_IN_BYTES,
+      };
+    },
+  });
 }
