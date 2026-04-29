@@ -172,7 +172,7 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
 
   return (
     <div
-      className="flex h-10 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78"
+      className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78 sm:flex-none"
       title={
         hasQuota
           ? `已用 ${formatStoragePercent(usage.percent, usage.usedBytes)}`
@@ -180,10 +180,10 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
       }
     >
       <CircleStackIcon className="size-4.5 shrink-0 text-cyan-100/86" />
-      <div className="min-w-[7.25rem]">
+      <div className="min-w-0 flex-1 sm:min-w-[7.25rem]">
         <div className="flex items-center justify-between gap-2 text-[11px] leading-none">
-          <span className="text-white/58">容量</span>
-          <span className="font-medium text-white">
+          <span className="hidden text-white/58 sm:inline">容量</span>
+          <span className="truncate font-medium text-white">
             {hasQuota
               ? `${formatFileSize(usage.usedBytes)} / ${formatFileSize(
                   usage.totalBytes,
@@ -218,13 +218,13 @@ function StorageSourceSelect({
   }
 
   return (
-    <label className="flex h-10 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78">
+    <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78 sm:flex-none">
       <span className="hidden text-[11px] text-white/48 sm:inline">源</span>
       <select
         value={activeSourceId}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="max-w-[9rem] bg-transparent text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:opacity-55"
+        className="min-w-0 max-w-full bg-transparent text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:opacity-55 sm:max-w-[9rem]"
       >
         {sources.map((source) => (
           <option key={source.id} value={source.id} className="bg-[#111]">
@@ -709,35 +709,39 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         />
       ) : null}
 
-      <div className="fixed right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:right-6 sm:top-6 sm:max-w-none">
-        <StorageSourceSelect
-          activeSourceId={activeSourceId}
-          disabled={switchingSource || historyLoading}
-          sources={sources}
-          onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
-        />
-        <StorageUsageBadge usage={storageUsage} />
-        <button
-          type="button"
-          onClick={() => void handleRefreshImages()}
-          disabled={refreshingImages}
-          aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
-          title={refreshingImages ? "刷新中" : "刷新媒体库"}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
-        >
-          <ArrowPathIcon
-            className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
+      <div className="fixed left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-[24px] border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
+        <div className="flex min-w-0 items-center gap-2 sm:contents">
+          <StorageSourceSelect
+            activeSourceId={activeSourceId}
+            disabled={switchingSource || historyLoading}
+            sources={sources}
+            onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
           />
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          aria-label="退出登录"
-          title="退出登录"
-          className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
-        >
-          <PowerIcon className="size-5" />
-        </button>
+          <StorageUsageBadge usage={storageUsage} />
+        </div>
+        <div className="flex justify-end gap-2 sm:contents">
+          <button
+            type="button"
+            onClick={() => void handleRefreshImages()}
+            disabled={refreshingImages}
+            aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
+            title={refreshingImages ? "刷新中" : "刷新媒体库"}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            <ArrowPathIcon
+              className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            aria-label="退出登录"
+            title="退出登录"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
+          >
+            <PowerIcon className="size-5" />
+          </button>
+        </div>
       </div>
 
       <section
