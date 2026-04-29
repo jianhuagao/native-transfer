@@ -21,6 +21,8 @@ import {
 import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
 import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
+import type { LenisOptions } from "lenis";
+import { ReactLenis, useLenis } from "lenis/react";
 import {
   ArrowPathIcon,
   ChevronUpIcon,
@@ -74,6 +76,22 @@ function canUseAutoScrollJump() {
 
   return window.matchMedia("(min-width: 768px) and (pointer: fine)").matches;
 }
+
+const LENIS_OPTIONS = {
+  autoRaf: true,
+  smoothWheel: true,
+  syncTouch: false,
+  lerp: 0.09,
+  wheelMultiplier: 0.9,
+  prevent: (node) => node.closest("[data-lenis-prevent]") !== null,
+  virtualScroll: ({ event }) => {
+    if (event.type !== "wheel") {
+      return false;
+    }
+
+    return canUseAutoScrollJump();
+  },
+} satisfies LenisOptions;
 
 function formatStoragePercent(percent: number, usedBytes: number) {
   if (usedBytes > 0 && percent > 0 && percent < 1) {
@@ -210,7 +228,16 @@ function GalleryRail({
   );
 }
 
-export function TransferApp({ initialAuthorized }: TransferAppProps) {
+export function TransferApp(props: TransferAppProps) {
+  return (
+    <ReactLenis root options={LENIS_OPTIONS}>
+      <TransferAppContent {...props} />
+    </ReactLenis>
+  );
+}
+
+function TransferAppContent({ initialAuthorized }: TransferAppProps) {
+  const lenis = useLenis();
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [authNotice, setAuthNotice] = useState("");
   const [pageError, setPageError] = useState("");
@@ -414,13 +441,33 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   function scrollToGallery() {
-    galleryRef.current?.scrollIntoView({
+    if (!galleryRef.current) {
+      return;
+    }
+
+    if (lenis) {
+      lenis.scrollTo(galleryRef.current, {
+        duration: 0.95,
+        lock: true,
+      });
+      return;
+    }
+
+    galleryRef.current.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
   }
 
   function scrollToHome() {
+    if (lenis) {
+      lenis.scrollTo(0, {
+        duration: 0.95,
+        lock: true,
+      });
+      return;
+    }
+
     window.scrollTo({
       top: 0,
       behavior: "smooth",

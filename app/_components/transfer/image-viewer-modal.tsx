@@ -112,6 +112,7 @@ export function ImageViewerModal({
 
   return (
     <div
+      data-lenis-prevent
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/82 p-0 backdrop-blur-xl sm:p-4"
       onClick={onClose}
     >
