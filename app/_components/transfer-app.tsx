@@ -9,6 +9,7 @@ import { HERO_IMAGE_PLACEHOLDER } from "@/app/_components/transfer/constants";
 import type {
   ConfettiKind,
   ImagesPayload,
+  StorageSource,
   StorageUsage,
   StoredImage,
   TransferAppProps,
@@ -37,6 +38,7 @@ const EMPTY_STORAGE_USAGE: StorageUsage = {
   percent: 0,
 };
 const HERO_CACHE_KEY = "native-transfer:last-hero";
+const DEFAULT_UPLOAD_MODE = "form-data";
 
 function isStoredImage(value: unknown): value is StoredImage {
   if (!value || typeof value !== "object") {
@@ -47,6 +49,8 @@ function isStoredImage(value: unknown): value is StoredImage {
 
   return (
     typeof image.id === "string" &&
+    typeof image.sourceId === "string" &&
+    typeof image.sourceLabel === "string" &&
     typeof image.name === "string" &&
     (image.mediaType === "image" || image.mediaType === "video") &&
     typeof image.mimeType === "string" &&
@@ -58,13 +62,17 @@ function isStoredImage(value: unknown): value is StoredImage {
   );
 }
 
-function readCachedHeroImage() {
+function getHeroCacheKey(sourceId: string) {
+  return `${HERO_CACHE_KEY}:${sourceId}`;
+}
+
+function readCachedHeroImage(sourceId: string) {
   if (typeof window === "undefined") {
     return null;
   }
 
   try {
-    const cached = window.localStorage.getItem(HERO_CACHE_KEY);
+    const cached = window.localStorage.getItem(getHeroCacheKey(sourceId));
 
     if (!cached) {
       return null;
@@ -77,18 +85,18 @@ function readCachedHeroImage() {
   }
 }
 
-function writeCachedHeroImage(image: StoredImage | null) {
+function writeCachedHeroImage(sourceId: string, image: StoredImage | null) {
   if (typeof window === "undefined") {
     return;
   }
 
   try {
     if (image) {
-      window.localStorage.setItem(HERO_CACHE_KEY, JSON.stringify(image));
+      window.localStorage.setItem(getHeroCacheKey(sourceId), JSON.stringify(image));
       return;
     }
 
-    window.localStorage.removeItem(HERO_CACHE_KEY);
+    window.localStorage.removeItem(getHeroCacheKey(sourceId));
   } catch {
     return;
   }
@@ -191,6 +199,40 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function StorageSourceSelect({
+  activeSourceId,
+  disabled,
+  sources,
+  onChange,
+}: {
+  activeSourceId: string;
+  disabled: boolean;
+  sources: StorageSource[];
+  onChange: (sourceId: string) => void;
+}) {
+  if (sources.length <= 1) {
+    return null;
+  }
+
+  return (
+    <label className="flex h-10 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78">
+      <span className="hidden text-[11px] text-white/48 sm:inline">源</span>
+      <select
+        value={activeSourceId}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="max-w-[9rem] bg-transparent text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:opacity-55"
+      >
+        {sources.map((source) => (
+          <option key={source.id} value={source.id} className="bg-[#111]">
+            {source.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -297,6 +339,8 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [authNotice, setAuthNotice] = useState("");
   const [pageError, setPageError] = useState("");
   const [images, setImages] = useState<StoredImage[]>([]);
+  const [sources, setSources] = useState<StorageSource[]>([]);
+  const [activeSourceId, setActiveSourceId] = useState("");
   const [storageUsage, setStorageUsage] =
     useState<StorageUsage>(EMPTY_STORAGE_USAGE);
   const [heroImage, setHeroImage] = useState<StoredImage | null>(null);
@@ -304,21 +348,49 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
+  const [switchingSource, setSwitchingSource] = useState(false);
   const [confettiToken, setConfettiToken] = useState(0);
   const [confettiVisible, setConfettiVisible] = useState(false);
   const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
   const galleryRef = useRef<HTMLElement | null>(null);
   const lastAutoScrollAtRef = useRef(0);
+  const activeSource = sources.find((source) => source.id === activeSourceId);
+
+  function applyImagesPayload(
+    payload: ImagesPayload,
+    options: { randomizeHero?: boolean; clearSelected?: boolean } = {},
+  ) {
+    setSources(payload.sources);
+    setActiveSourceId(payload.activeSourceId);
+    setImages(payload.images);
+    setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
+
+    if (options.clearSelected) {
+      setSelectedImage(null);
+    }
+
+    setHeroImage((current) => {
+      const currentStillExists = payload.images.some((image) => {
+        return image.id === current?.id && image.sourceId === current?.sourceId;
+      });
+
+      if (options.randomizeHero || !current || !currentStillExists) {
+        return pickRandomImage(payload.images);
+      }
+
+      return current;
+    });
+  }
 
   useEffect(() => {
-    if (!authorized || heroImage) {
+    if (!authorized || heroImage || !activeSourceId) {
       return;
     }
 
     let cancelled = false;
 
     Promise.resolve().then(() => {
-      const cachedHeroImage = readCachedHeroImage();
+      const cachedHeroImage = readCachedHeroImage(activeSourceId);
 
       if (!cancelled && cachedHeroImage) {
         setHeroImage(cachedHeroImage);
@@ -328,18 +400,17 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     return () => {
       cancelled = true;
     };
-  }, [authorized, heroImage]);
+  }, [activeSourceId, authorized, heroImage]);
 
   useEffect(() => {
-    if (!authorized) {
-      writeCachedHeroImage(null);
+    if (!authorized || !activeSourceId) {
       return;
     }
 
     if (heroImage) {
-      writeCachedHeroImage(heroImage);
+      writeCachedHeroImage(activeSourceId, heroImage);
     }
-  }, [authorized, heroImage]);
+  }, [activeSourceId, authorized, heroImage]);
 
   useEffect(() => {
     if (!authorized) {
@@ -358,9 +429,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
         if (!cancelled) {
           setPageError("");
-          setImages(payload.images);
-          setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
-          setHeroImage(pickRandomImage(payload.images));
+          applyImagesPayload(payload, { randomizeHero: true });
         }
       })
       .catch(() => {
@@ -416,6 +485,8 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setPageError("");
     setAuthorized(false);
     setImages([]);
+    setSources([]);
+    setActiveSourceId("");
     setStorageUsage(EMPTY_STORAGE_USAGE);
     setHeroImage(null);
     setSelectedImage(null);
@@ -436,20 +507,45 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
     const payload = (await response.json()) as ImagesPayload;
     startTransition(() => {
-      setImages(payload.images);
-      setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
-      setHeroImage((current) => {
-        const currentStillExists = payload.images.some(
-          (image) => image.id === current?.id,
-        );
-
-        if (options.randomizeHero || !current || !currentStillExists) {
-          return pickRandomImage(payload.images);
-        }
-
-        return current;
-      });
+      applyImagesPayload(payload, options);
     });
+  }
+
+  async function handleStorageSourceChange(sourceId: string) {
+    if (sourceId === activeSourceId || switchingSource) {
+      return;
+    }
+
+    setSwitchingSource(true);
+    setHistoryLoading(true);
+
+    try {
+      const response = await fetch("/api/storage-source", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sourceId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("switch failed");
+      }
+
+      const payload = (await response.json()) as ImagesPayload;
+      startTransition(() => {
+        applyImagesPayload(payload, {
+          clearSelected: true,
+          randomizeHero: true,
+        });
+      });
+      setPageError("");
+    } catch {
+      setPageError("切换存储源失败，请检查配置。");
+    } finally {
+      setHistoryLoading(false);
+      setSwitchingSource(false);
+    }
   }
 
   async function handleRefreshImages() {
@@ -473,7 +569,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setDeletingId(image.id);
 
     try {
-      const response = await fetch(buildDeleteImagePath(image.id), {
+      const response = await fetch(buildDeleteImagePath(image), {
         method: "DELETE",
       });
 
@@ -482,15 +578,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       }
 
       const payload = (await response.json()) as ImagesPayload;
-      setImages(payload.images);
-      setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
-      setHeroImage((current) => {
-        if (!current || current.id === image.id) {
-          return pickRandomImage(payload.images);
-        }
-
-        return current;
-      });
+      applyImagesPayload(payload);
       setPageError("");
       if (selectedImage?.id === image.id) {
         setSelectedImage(null);
@@ -622,6 +710,12 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       ) : null}
 
       <div className="fixed right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:right-6 sm:top-6 sm:max-w-none">
+        <StorageSourceSelect
+          activeSourceId={activeSourceId}
+          disabled={switchingSource || historyLoading}
+          sources={sources}
+          onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
+        />
         <StorageUsageBadge usage={storageUsage} />
         <button
           type="button"
@@ -700,6 +794,8 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
               <TransferUploadPanel
                 onUploaded={refreshImages}
                 onUploadSuccess={() => playSuccessConfetti("upload")}
+                sourceId={activeSourceId}
+                uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
               />
             </div>
             {pageError ? (

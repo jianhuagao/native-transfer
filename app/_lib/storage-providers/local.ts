@@ -3,14 +3,17 @@ import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import type { StorageProvider } from "@/app/_lib/storage-providers/types";
+import type {
+  StorageProvider,
+  StorageSourceConfig,
+} from "@/app/_lib/storage-providers/types";
 
-function getStorageRoot() {
-  return path.join(process.cwd(), "storage");
+function getStorageRoot(source: StorageSourceConfig) {
+  return path.join(process.cwd(), "storage", source.id);
 }
 
-function resolveStoragePath(pathname: string) {
-  const root = getStorageRoot();
+function resolveStoragePath(source: StorageSourceConfig, pathname: string) {
+  const root = getStorageRoot(source);
   const target = path.resolve(root, pathname.replaceAll("\\", "/"));
 
   if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
@@ -20,9 +23,9 @@ function resolveStoragePath(pathname: string) {
   return target;
 }
 
-function toStoragePathname(filePath: string) {
+function toStoragePathname(source: StorageSourceConfig, filePath: string) {
   return path
-    .relative(getStorageRoot(), filePath)
+    .relative(getStorageRoot(source), filePath)
     .split(path.sep)
     .join("/");
 }
@@ -94,10 +97,12 @@ function parseRange(range: string, size: number) {
   };
 }
 
-export function createLocalStorageProvider(): StorageProvider {
+export function createLocalStorageProvider(
+  source: StorageSourceConfig,
+): StorageProvider {
   return {
     async put(pathname, body) {
-      const filePath = resolveStoragePath(pathname);
+      const filePath = resolveStoragePath(source, pathname);
       await mkdir(path.dirname(filePath), { recursive: true });
       await writeFile(filePath, Buffer.from(await body.arrayBuffer()));
 
@@ -105,7 +110,7 @@ export function createLocalStorageProvider(): StorageProvider {
     },
 
     async list(options) {
-      const prefixPath = resolveStoragePath(options.prefix);
+      const prefixPath = resolveStoragePath(source, options.prefix);
 
       try {
         const files = await walkFiles(prefixPath);
@@ -114,7 +119,7 @@ export function createLocalStorageProvider(): StorageProvider {
             const fileStat = await stat(filePath);
 
             return {
-              pathname: toStoragePathname(filePath),
+              pathname: toStoragePathname(source, filePath),
               uploadedAt: fileStat.birthtime,
               size: fileStat.size,
               contentType: null,
@@ -139,7 +144,7 @@ export function createLocalStorageProvider(): StorageProvider {
     },
 
     async read(pathname, options) {
-      const filePath = resolveStoragePath(pathname);
+      const filePath = resolveStoragePath(source, pathname);
 
       try {
         const fileStat = await stat(filePath);
@@ -200,7 +205,7 @@ export function createLocalStorageProvider(): StorageProvider {
 
     async delete(pathname) {
       try {
-        await unlink(resolveStoragePath(pathname));
+        await unlink(resolveStoragePath(source, pathname));
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
 

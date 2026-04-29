@@ -1,4 +1,32 @@
 export type StorageAccess = "public" | "private";
+export type StorageProviderName = "local" | "s3" | "vercel-blob";
+export type StorageUploadMode = "form-data" | "vercel-blob-client";
+
+export type StorageSourceConfig = {
+  id: string;
+  label: string;
+  provider: StorageProviderName;
+  access: StorageAccess;
+  prefix: string;
+  totalCapacity?: string;
+  uploadMode: StorageUploadMode;
+  token?: string;
+  s3?: {
+    bucket: string;
+    endpoint: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    forcePathStyle: boolean;
+  };
+};
+
+export type PublicStorageSource = {
+  id: string;
+  label: string;
+  provider: StorageProviderName;
+  uploadMode: StorageUploadMode;
+};
 
 export type StorageObject = {
   pathname: string;

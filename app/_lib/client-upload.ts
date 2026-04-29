@@ -2,19 +2,23 @@
 
 type UploadMediaOptions = {
   file: File;
+  sourceId: string;
+  uploadMode: "form-data" | "vercel-blob-client";
   pathname: string;
   onProgress: (percentage: number) => void;
 };
 
-function getUploadMode() {
-  return process.env.NEXT_PUBLIC_STORAGE_UPLOAD_MODE || "vercel-blob-client";
-}
-
-function uploadWithFormData({ file, pathname, onProgress }: UploadMediaOptions) {
+function uploadWithFormData({
+  file,
+  sourceId,
+  pathname,
+  onProgress,
+}: UploadMediaOptions) {
   return new Promise<void>((resolve, reject) => {
     const formData = new FormData();
     formData.set("file", file);
     formData.set("pathname", pathname);
+    formData.set("sourceId", sourceId);
 
     const request = new XMLHttpRequest();
     request.open("POST", "/api/images/upload");
@@ -52,6 +56,7 @@ function uploadWithFormData({ file, pathname, onProgress }: UploadMediaOptions) 
 
 async function uploadWithVercelBlobClient({
   file,
+  sourceId,
   pathname,
   onProgress,
 }: UploadMediaOptions) {
@@ -59,7 +64,11 @@ async function uploadWithVercelBlobClient({
 
   await upload(pathname, file, {
     access: "private",
-    handleUploadUrl: "/api/images/upload",
+    handleUploadUrl: `/api/images/upload?source=${encodeURIComponent(sourceId)}`,
+    clientPayload: JSON.stringify({ sourceId }),
+    headers: {
+      "x-storage-source": sourceId,
+    },
     multipart: true,
     contentType: file.type || undefined,
     onUploadProgress: ({ percentage }) => {
@@ -70,13 +79,21 @@ async function uploadWithVercelBlobClient({
 
 export async function uploadMedia({
   file,
+  sourceId,
+  uploadMode,
   pathname,
   onProgress,
 }: UploadMediaOptions) {
-  if (getUploadMode() === "form-data") {
-    await uploadWithFormData({ file, pathname, onProgress });
+  if (uploadMode === "form-data") {
+    await uploadWithFormData({ file, sourceId, uploadMode, pathname, onProgress });
     return;
   }
 
-  await uploadWithVercelBlobClient({ file, pathname, onProgress });
+  await uploadWithVercelBlobClient({
+    file,
+    sourceId,
+    uploadMode,
+    pathname,
+    onProgress,
+  });
 }

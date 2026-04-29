@@ -1,7 +1,7 @@
 import "server-only";
 
 import path from "node:path";
-import { createPreviewToken } from "@/app/_lib/auth";
+import { createPreviewToken, verifyPreviewToken } from "@/app/_lib/auth";
 import {
   ALLOWED_UPLOAD_CONTENT_TYPES,
   getDefaultExtension,
@@ -10,12 +10,18 @@ import {
   type MediaKind,
 } from "@/app/_lib/media";
 import {
+  getActiveStorageSourceId,
+  getPublicStorageSources,
+  getStorageSource,
   getStorageProvider,
+  type PublicStorageSource,
   type StorageAccess,
 } from "@/app/_lib/storage-providers";
 
 export type StoredImage = {
   id: string;
+  sourceId: string;
+  sourceLabel: string;
   name: string;
   mediaType: MediaKind;
   mimeType: string;
@@ -30,6 +36,13 @@ export type StorageUsage = {
   totalBytes: number;
   usedBytes: number;
   percent: number;
+};
+
+export type StorageImagesPayload = {
+  activeSourceId: string;
+  images: StoredImage[];
+  sources: PublicStorageSource[];
+  storageUsage: StorageUsage;
 };
 
 function pad(value: number) {
@@ -73,20 +86,12 @@ function sanitizeBaseName(name: string) {
 
 const MAX_UPLOAD_SIZE_IN_BYTES = 1024 * 1024 * 200;
 
-function getStorageAccess(): StorageAccess {
-  const access = (process.env.STORAGE_ACCESS ?? process.env.BLOB_ACCESS)
-    ?.trim()
-    .toLowerCase();
-
-  if (access === "public" || access === "private") {
-    return access;
-  }
-
-  return "private";
+function getStorageAccess(sourceId?: string | null): StorageAccess {
+  return getStorageSource(sourceId).access;
 }
 
-function getStoragePrefix() {
-  return process.env.STORAGE_PREFIX?.trim() || "uploads/";
+function getStorageTotalCapacity(sourceId?: string | null) {
+  return getStorageSource(sourceId).totalCapacity;
 }
 
 function parseStorageCapacity(value?: string | null) {
@@ -115,9 +120,12 @@ function parseStorageCapacity(value?: string | null) {
   return Math.max(0, Math.round(amount * multipliers[unit]));
 }
 
-export function getStorageUsage(images: StoredImage[]): StorageUsage {
+export function getStorageUsage(
+  images: StoredImage[],
+  sourceId?: string | null,
+): StorageUsage {
   const usedBytes = images.reduce((total, image) => total + image.size, 0);
-  const totalBytes = parseStorageCapacity(process.env.STORAGE_TOTAL_CAPACITY);
+  const totalBytes = parseStorageCapacity(getStorageTotalCapacity(sourceId));
   const percent =
     totalBytes > 0 ? Math.min(100, (usedBytes / totalBytes) * 100) : 0;
 
@@ -136,6 +144,25 @@ function decodePathname(name: string) {
   }
 }
 
+function encodePathname(pathname: string) {
+  return pathname
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+function createSourcePreviewToken(sourceId: string, pathname: string) {
+  return createPreviewToken(`${sourceId}:${pathname}`);
+}
+
+export function verifySourcePreviewToken(
+  sourceId: string,
+  pathname: string,
+  token: string | null,
+) {
+  return verifyPreviewToken(`${sourceId}:${pathname}`, token);
+}
+
 function assertUploadFileAllowed(file: File) {
   if (file.size > MAX_UPLOAD_SIZE_IN_BYTES) {
     throw new Error("单文件大小不能超过 200MB");
@@ -150,20 +177,22 @@ function assertUploadFileAllowed(file: File) {
   }
 }
 
-export async function saveUpload(file: File) {
+export async function saveUpload(file: File, sourceId?: string | null) {
   assertUploadFileAllowed(file);
 
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const source = getStorageSource(activeSourceId);
   const now = new Date();
   const originalName = file.name || "media";
   const extension =
     path.extname(originalName).toLowerCase() || getDefaultExtension(file.type);
   const baseName =
     sanitizeBaseName(path.basename(originalName, extension)) || "media";
-  const pathname = `${getStoragePrefix()}${formatStamp(now)}-${baseName}${extension}`;
-  const storageProvider = await getStorageProvider();
+  const pathname = `${source.prefix}${formatStamp(now)}-${baseName}${extension}`;
+  const storageProvider = await getStorageProvider(source.id);
 
   const storedObject = await storageProvider.put(pathname, file, {
-    access: getStorageAccess(),
+    access: getStorageAccess(source.id),
     addRandomSuffix: false,
     contentType: file.type || undefined,
   });
@@ -171,26 +200,31 @@ export async function saveUpload(file: File) {
   return storedObject.pathname;
 }
 
-export async function listImages(): Promise<StoredImage[]> {
-  const storageProvider = await getStorageProvider();
+export async function listImages(sourceId?: string | null): Promise<StoredImage[]> {
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const source = getStorageSource(activeSourceId);
+  const storageProvider = await getStorageProvider(source.id);
   const objects = await storageProvider.list({
-    prefix: getStoragePrefix(),
+    prefix: source.prefix,
     limit: 1000,
   });
 
   return objects
     .map((object) => {
-      const encodedPath = encodeURIComponent(object.pathname);
-      const previewToken = createPreviewToken(object.pathname);
+      const encodedPath = encodePathname(object.pathname);
+      const previewToken = createSourcePreviewToken(source.id, object.pathname);
       const mimeType = getMediaMimeType(object.contentType, object.pathname);
+      const sourceQuery = `source=${encodeURIComponent(source.id)}`;
 
       return {
         id: object.pathname,
+        sourceId: source.id,
+        sourceLabel: source.label,
         name: path.basename(object.pathname),
         mediaType: getMediaKind(mimeType, object.pathname),
         mimeType,
-        url: `/api/images/${encodedPath}?preview=1&token=${previewToken}`,
-        originalUrl: `/api/images/${encodedPath}`,
+        url: `/api/images/${encodedPath}?${sourceQuery}&preview=1&token=${previewToken}`,
+        originalUrl: `/api/images/${encodedPath}?${sourceQuery}`,
         uploadedAt: object.uploadedAt.toISOString(),
         uploadedAtLabel: formatLabel(object.uploadedAt),
         size: object.size,
@@ -204,11 +238,16 @@ export async function listImages(): Promise<StoredImage[]> {
     });
 }
 
-export async function readImage(name: string, range?: string | null) {
+export async function readImage(
+  name: string,
+  range?: string | null,
+  sourceId?: string | null,
+) {
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
   const pathname = decodePathname(name);
-  const storageProvider = await getStorageProvider();
+  const storageProvider = await getStorageProvider(activeSourceId);
   const result = await storageProvider.read(pathname, {
-    access: getStorageAccess(),
+    access: getStorageAccess(activeSourceId),
     range,
   });
 
@@ -236,9 +275,10 @@ export async function readImage(name: string, range?: string | null) {
   };
 }
 
-export async function removeImage(name: string) {
+export async function removeImage(name: string, sourceId?: string | null) {
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
   const pathname = decodePathname(name);
-  const storageProvider = await getStorageProvider();
+  const storageProvider = await getStorageProvider(activeSourceId);
   await storageProvider.delete(pathname);
 }
 
@@ -246,8 +286,10 @@ export async function handleUploadRequest(
   request: Request,
   body: unknown,
   authorize: () => Promise<boolean>,
+  sourceId?: string | null,
 ) {
-  const storageProvider = await getStorageProvider();
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const storageProvider = await getStorageProvider(activeSourceId);
 
   if (!storageProvider.handleClientUpload) {
     throw new Error("当前存储提供方不支持客户端直传。");
@@ -268,4 +310,18 @@ export async function handleUploadRequest(
       };
     },
   });
+}
+
+export async function getImagesPayload(
+  sourceId?: string | null,
+): Promise<StorageImagesPayload> {
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const images = await listImages(activeSourceId);
+
+  return {
+    activeSourceId,
+    images,
+    sources: getPublicStorageSources(),
+    storageUsage: getStorageUsage(images, activeSourceId),
+  };
 }

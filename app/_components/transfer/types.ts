@@ -4,6 +4,8 @@ export type TabKey = "transfer" | "history";
 
 export type StoredImage = {
   id: string;
+  sourceId: string;
+  sourceLabel: string;
   name: string;
   mediaType: MediaKind;
   mimeType: string;
@@ -20,8 +22,17 @@ export type StorageUsage = {
   percent: number;
 };
 
+export type StorageSource = {
+  id: string;
+  label: string;
+  provider: "local" | "s3" | "vercel-blob";
+  uploadMode: "form-data" | "vercel-blob-client";
+};
+
 export type ImagesPayload = {
+  activeSourceId: string;
   images: StoredImage[];
+  sources: StorageSource[];
   storageUsage: StorageUsage;
 };
 

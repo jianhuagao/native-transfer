@@ -11,16 +11,22 @@ import type {
   StorageAccess,
   StorageClientUploadOptions,
   StorageProvider,
+  StorageSourceConfig,
 } from "@/app/_lib/storage-providers/types";
 
 function toBlobAccess(access: StorageAccess): BlobAccessType {
   return access;
 }
 
-export function createVercelBlobStorageProvider(): StorageProvider {
+export function createVercelBlobStorageProvider(
+  source: StorageSourceConfig,
+): StorageProvider {
+  const commandOptions = source.token ? { token: source.token } : undefined;
+
   return {
     async put(pathname, body, options) {
       const blob = await put(pathname, body, {
+        ...commandOptions,
         access: toBlobAccess(options.access),
         addRandomSuffix: options.addRandomSuffix,
         contentType: options.contentType,
@@ -31,6 +37,7 @@ export function createVercelBlobStorageProvider(): StorageProvider {
 
     async list(options) {
       const { blobs } = await list({
+        ...commandOptions,
         prefix: options.prefix,
         limit: options.limit,
       });
@@ -45,6 +52,7 @@ export function createVercelBlobStorageProvider(): StorageProvider {
 
     async read(pathname, options) {
       const result = await get(pathname, {
+        ...commandOptions,
         access: toBlobAccess(options.access),
         headers: options.range ? { Range: options.range } : undefined,
       });
@@ -64,7 +72,7 @@ export function createVercelBlobStorageProvider(): StorageProvider {
     },
 
     async delete(pathname) {
-      await del(pathname);
+      await del(pathname, commandOptions);
     },
 
     async handleClientUpload({
@@ -73,6 +81,7 @@ export function createVercelBlobStorageProvider(): StorageProvider {
       getUploadConstraints,
     }: StorageClientUploadOptions) {
       return handleUpload({
+        token: source.token,
         body: body as HandleUploadBody,
         request,
         onBeforeGenerateToken: getUploadConstraints,

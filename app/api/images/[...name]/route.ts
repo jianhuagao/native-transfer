@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isAuthorized, verifyPreviewToken } from "@/app/_lib/auth";
+import { isAuthorized } from "@/app/_lib/auth";
 import {
-  getStorageUsage,
-  listImages,
+  getImagesPayload,
   readImage,
   removeImage,
+  verifySourcePreviewToken,
 } from "@/app/_lib/storage";
 
 export const runtime = "nodejs";
@@ -24,10 +24,13 @@ export async function GET(
 ) {
   const { name } = await context.params;
   const pathname = getPathnameFromSegments(name);
+  const sourceId = request.nextUrl.searchParams.get("source");
   const isDownload = request.nextUrl.searchParams.has("download");
   const previewToken = request.nextUrl.searchParams.get("token");
   const previewAllowed =
-    !isDownload && verifyPreviewToken(pathname, previewToken);
+    !!sourceId &&
+    !isDownload &&
+    verifySourcePreviewToken(sourceId, pathname, previewToken);
 
   if (!previewAllowed && !(await isAuthorized())) {
     return unauthorized();
@@ -43,7 +46,7 @@ export async function GET(
       acceptRanges,
       contentLength,
       contentRange,
-    } = await readImage(pathname, request.headers.get("range"));
+    } = await readImage(pathname, request.headers.get("range"), sourceId);
     const disposition = isDownload
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
@@ -74,7 +77,7 @@ export async function GET(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ name: string[] }> },
 ) {
   if (!(await isAuthorized())) {
@@ -82,13 +85,11 @@ export async function DELETE(
   }
 
   const { name } = await context.params;
-  await removeImage(getPathnameFromSegments(name));
-
-  const images = await listImages();
+  const sourceId = new URL(request.url).searchParams.get("source");
+  await removeImage(getPathnameFromSegments(name), sourceId);
 
   return NextResponse.json({
     ok: true,
-    images,
-    storageUsage: getStorageUsage(images),
+    ...(await getImagesPayload(sourceId)),
   });
 }

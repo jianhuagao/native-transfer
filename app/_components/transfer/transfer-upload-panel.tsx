@@ -17,11 +17,15 @@ import { useEffect, useRef, useState } from "react";
 type TransferUploadPanelProps = {
   onUploaded: () => Promise<void>;
   onUploadSuccess: () => void;
+  sourceId: string;
+  uploadMode: "form-data" | "vercel-blob-client";
 };
 
 export function TransferUploadPanel({
   onUploaded,
   onUploadSuccess,
+  sourceId,
+  uploadMode,
 }: TransferUploadPanelProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const previewTimerRef = useRef<number | null>(null);
@@ -112,6 +116,11 @@ export function TransferUploadPanel({
       return;
     }
 
+    if (!sourceId) {
+      setUploadStatus("存储源加载中");
+      return;
+    }
+
     setUploadStatus("");
     setUploadProgress(0);
     setUploading(true);
@@ -121,6 +130,8 @@ export function TransferUploadPanel({
 
       await uploadMedia({
         file,
+        sourceId,
+        uploadMode,
         pathname: buildUploadPath(file.name, file.type),
         onProgress: setUploadProgress,
       });

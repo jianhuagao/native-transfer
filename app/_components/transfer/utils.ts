@@ -55,9 +55,16 @@ export function buildUploadPath(fileName: string, contentType?: string) {
   return `uploads/${stamp}-${baseName}${extension}`;
 }
 
-export function buildDeleteImagePath(imageId: string) {
-  return `/api/images/${imageId
+export function buildDeleteImagePath(image: {
+  id: string;
+  sourceId?: string | null;
+}) {
+  const sourceQuery = image.sourceId
+    ? `?source=${encodeURIComponent(image.sourceId)}`
+    : "";
+
+  return `/api/images/${image.id
     .split("/")
     .map((segment) => encodeURIComponent(segment))
-    .join("/")}`;
+    .join("/")}${sourceQuery}`;
 }
