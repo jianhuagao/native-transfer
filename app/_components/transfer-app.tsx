@@ -17,13 +17,13 @@ import {
 } from "@/app/_components/transfer/utils";
 import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
 import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
+import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
   ArrowPathIcon,
   ChevronUpIcon,
   PowerIcon,
 } from "@heroicons/react/24/solid";
 import { startTransition, useEffect, useRef, useState } from "react";
-import { ProgressiveImage } from "@/app/_components/transfer/progressive-image";
 
 function pickRandomImage(images: StoredImage[]) {
   if (images.length === 0) {
@@ -90,8 +90,8 @@ function GalleryRail({
     <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-4 sm:px-6 lg:px-10">
       <button
         type="button"
-        aria-label="展开图库"
-        title="展开图库"
+        aria-label="展开媒体库"
+        title="展开媒体库"
         onClick={onScrollToGallery}
         className="mx-auto mb-2 flex h-8 w-12 items-center justify-center rounded-full border border-white/14 bg-black/28 text-white/72 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:bg-white/14"
       >
@@ -121,14 +121,18 @@ function GalleryRail({
                 onClick={() => onOpenImage(image)}
                 className="group relative h-24 overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70 sm:h-32 lg:h-36"
               >
-                <ProgressiveImage
+                <MediaPreview
                   src={withRefreshVersion(image.url, imageRefreshVersion)}
                   alt={image.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw"
-                  quality={70}
-                  decoding="async"
+                  mediaType={image.mediaType}
                   className="object-cover transition duration-500 group-hover:scale-105"
+                  imageProps={{
+                    fill: true,
+                    sizes:
+                      "(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw",
+                    quality: 70,
+                    decoding: "async",
+                  }}
                 />
                 <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
               </button>
@@ -136,7 +140,7 @@ function GalleryRail({
           </div>
         ) : (
           <div className="flex h-28 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62">
-            暂无图片
+            暂无媒体
           </div>
         )}
       </div>
@@ -414,8 +418,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
           type="button"
           onClick={() => void handleRefreshImages()}
           disabled={refreshingImages}
-          aria-label={refreshingImages ? "刷新中" : "刷新图库"}
-          title={refreshingImages ? "刷新中" : "刷新图库"}
+          aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
+          title={refreshingImages ? "刷新中" : "刷新媒体库"}
           className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
         >
           <ArrowPathIcon
@@ -438,19 +442,35 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         onWheel={handleHeroWheel}
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
-        {heroImage ? (
-          <ProgressiveImage
+        {heroImage?.mediaType === "video" ? (
+          <MediaPreview
             src={withRefreshVersion(heroImage.url, imageRefreshVersion)}
             alt={heroImage.name}
-            fill
-            loading="eager"
-            fetchPriority="high"
-            sizes="100vw"
-            quality={90}
+            mediaType={heroImage.mediaType}
+            className="absolute inset-0 object-cover"
+            showVideoBadge={false}
+            videoProps={{
+              autoPlay: true,
+              loop: true,
+              "aria-hidden": true,
+            }}
+          />
+        ) : heroImage ? (
+          <MediaPreview
+            src={withRefreshVersion(heroImage.url, imageRefreshVersion)}
+            alt={heroImage.name}
+            mediaType={heroImage.mediaType}
             className="object-cover"
-            transition={{
-              overlayClassName: "duration-700",
-              imageClassName: "duration-1000 ease-out",
+            imageProps={{
+              fill: true,
+              loading: "eager",
+              fetchPriority: "high",
+              sizes: "100vw",
+              quality: 90,
+              transition: {
+                overlayClassName: "duration-700",
+                imageClassName: "duration-1000 ease-out",
+              },
             }}
           />
         ) : null}
@@ -493,10 +513,10 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         <div className="mx-auto max-w-[96rem]">
           <div className="mb-5 flex items-end justify-between gap-4">
             <h2 className="text-2xl font-semibold text-white sm:text-3xl">
-              图库
+              媒体库
             </h2>
             <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-xs text-white/58">
-              {images.length} 张
+              {images.length} 个
             </div>
           </div>
           <HistoryPanel

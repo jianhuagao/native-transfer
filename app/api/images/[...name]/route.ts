@@ -29,23 +29,34 @@ export async function GET(
   }
 
   try {
-    const { stream, fileName, mimeType, size } = await readImage(pathname);
+    const { stream, fileName, mimeType, size, acceptRanges, contentRange } =
+      await readImage(pathname, request.headers.get("range"));
     const disposition = isDownload
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
+    const headers: Record<string, string> = {
+      "Content-Type": mimeType,
+      "Content-Length": size.toString(),
+      "Content-Disposition": disposition,
+      "Cache-Control": previewAllowed
+        ? "public, max-age=31536000, immutable"
+        : "private, no-store, no-cache, must-revalidate",
+    };
+
+    if (acceptRanges) {
+      headers["Accept-Ranges"] = acceptRanges;
+    }
+
+    if (contentRange) {
+      headers["Content-Range"] = contentRange;
+    }
 
     return new NextResponse(stream, {
-      headers: {
-        "Content-Type": mimeType,
-        "Content-Length": size.toString(),
-        "Content-Disposition": disposition,
-        "Cache-Control": previewAllowed
-          ? "public, max-age=31536000, immutable"
-          : "private, no-store, no-cache, must-revalidate",
-      },
+      status: contentRange ? 206 : 200,
+      headers,
     });
   } catch {
-    return NextResponse.json({ error: "图片不存在" }, { status: 404 });
+    return NextResponse.json({ error: "媒体不存在" }, { status: 404 });
   }
 }
 

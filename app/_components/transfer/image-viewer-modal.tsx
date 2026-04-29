@@ -54,6 +54,7 @@ export function ImageViewerModal({
   const [previewScale, setPreviewScale] = useState(1);
   const [selectedImageLoading, setSelectedImageLoading] = useState(true);
   const [previewUseOriginal, setPreviewUseOriginal] = useState(false);
+  const selectedIsVideo = selectedImage.mediaType === "video";
 
   const selectedImageIndex = images.findIndex(
     (image) => image.id === selectedImage.id,
@@ -147,61 +148,78 @@ export function ImageViewerModal({
               </div>
             </div>
           ) : null}
-          <TransformWrapper
-            ref={imageViewerRef}
-            initialScale={1}
-            minScale={1}
-            maxScale={6}
-            smooth={false}
-            centerOnInit
-            centerZoomedOut
-            doubleClick={{ mode: "zoomIn", step: 1.5 }}
-            pinch={{ step: 5 }}
-            wheel={{ step: 0.2 }}
-            panning={{ allowLeftClickPan: true }}
-            onInit={(ref) => {
-              imageViewerRef.current = ref;
-            }}
-            onTransform={(_, state) => {
-              setPreviewScale(state.scale);
-            }}
-          >
-            <TransformComponent
-              wrapperClass="!h-full !w-full"
-              contentClass="!h-full !w-full"
-              wrapperStyle={{
-                width: "100%",
-                height: "100%",
+          {selectedIsVideo ? (
+            <div className="flex h-full w-full items-center justify-center p-4 pt-24 pb-16 sm:p-8 sm:pt-24 sm:pb-20">
+              <video
+                src={withRefreshVersion(
+                  selectedImage.originalUrl,
+                  imageRefreshVersion,
+                )}
+                controls
+                autoPlay
+                playsInline
+                onLoadedData={() => setSelectedImageLoading(false)}
+                onError={() => setSelectedImageLoading(false)}
+                className="max-h-full max-w-full bg-black object-contain"
+              />
+            </div>
+          ) : (
+            <TransformWrapper
+              ref={imageViewerRef}
+              initialScale={1}
+              minScale={1}
+              maxScale={6}
+              smooth={false}
+              centerOnInit
+              centerZoomedOut
+              doubleClick={{ mode: "zoomIn", step: 1.5 }}
+              pinch={{ step: 5 }}
+              wheel={{ step: 0.2 }}
+              panning={{ allowLeftClickPan: true }}
+              onInit={(ref) => {
+                imageViewerRef.current = ref;
               }}
-              contentStyle={{
-                width: "100%",
-                height: "100%",
+              onTransform={(_, state) => {
+                setPreviewScale(state.scale);
               }}
             >
-              <div className="flex h-full w-full items-center justify-center p-4 pt-24 pb-16 sm:p-8 sm:pt-24 sm:pb-20">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={
-                    previewUseOriginal
-                      ? selectedImage.originalUrl
-                      : withRefreshVersion(
-                          selectedImage.url,
-                          imageRefreshVersion,
-                        )
-                  }
-                  alt={selectedImage.name}
-                  onLoad={() => setSelectedImageLoading(false)}
-                  onError={() => setSelectedImageLoading(false)}
-                  draggable={false}
-                  className="max-h-full max-w-full select-none object-contain transition-transform duration-200 ease-out"
-                  style={{
-                    transform: `rotate(${previewRotation}deg)`,
-                    transformOrigin: "center center",
-                  }}
-                />
-              </div>
-            </TransformComponent>
-          </TransformWrapper>
+              <TransformComponent
+                wrapperClass="!h-full !w-full"
+                contentClass="!h-full !w-full"
+                wrapperStyle={{
+                  width: "100%",
+                  height: "100%",
+                }}
+                contentStyle={{
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
+                <div className="flex h-full w-full items-center justify-center p-4 pt-24 pb-16 sm:p-8 sm:pt-24 sm:pb-20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      previewUseOriginal
+                        ? selectedImage.originalUrl
+                        : withRefreshVersion(
+                            selectedImage.url,
+                            imageRefreshVersion,
+                          )
+                    }
+                    alt={selectedImage.name}
+                    onLoad={() => setSelectedImageLoading(false)}
+                    onError={() => setSelectedImageLoading(false)}
+                    draggable={false}
+                    className="max-h-full max-w-full select-none object-contain transition-transform duration-200 ease-out"
+                    style={{
+                      transform: `rotate(${previewRotation}deg)`,
+                      transformOrigin: "center center",
+                    }}
+                  />
+                </div>
+              </TransformComponent>
+            </TransformWrapper>
+          )}
         </div>
 
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 w-full max-w-[calc(100%-1.5rem)] -translate-x-1/2 px-3 sm:bottom-5 sm:max-w-max sm:px-0">
@@ -224,58 +242,62 @@ export function ImageViewerModal({
             >
               <ChevronRightIcon className="size-4.5 text-white" />
             </button>
-            <button
-              type="button"
-              onClick={() => imageViewerRef.current?.zoomOut(0.2)}
-              title="缩小"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-            >
-              <MagnifyingGlassMinusIcon className="size-4.5 text-white" />
-            </button>
-            <button
-              type="button"
-              onClick={() => imageViewerRef.current?.zoomIn(0.2)}
-              title="放大"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-            >
-              <MagnifyingGlassPlusIcon className="size-4.5 text-white" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreviewRotation((current) => current - 90)}
-              title="左转"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-            >
-              <ArrowUturnLeftIcon className="size-4.5 text-white" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreviewRotation((current) => current + 90)}
-              title="右转"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-            >
-              <ArrowUturnRightIcon className="size-4.5 text-white" />
-            </button>
-            <button
-              type="button"
-              onClick={resetSelectedImageView}
-              title="复位"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
-            >
-              <ArrowPathIcon className="size-4.5 text-white" />
-            </button>
-            <div className="inline-flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-[0.04em] text-white/62">
-              {previewScale.toFixed(2)}x
-            </div>
-            <button
-              type="button"
-              onClick={showSelectedImageOriginal}
-              disabled={previewUseOriginal}
-              title="原图"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              <PhotoIcon className="size-4.5 text-white" />
-            </button>
+            {!selectedIsVideo ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => imageViewerRef.current?.zoomOut(0.2)}
+                  title="缩小"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
+                >
+                  <MagnifyingGlassMinusIcon className="size-4.5 text-white" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => imageViewerRef.current?.zoomIn(0.2)}
+                  title="放大"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
+                >
+                  <MagnifyingGlassPlusIcon className="size-4.5 text-white" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewRotation((current) => current - 90)}
+                  title="左转"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
+                >
+                  <ArrowUturnLeftIcon className="size-4.5 text-white" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewRotation((current) => current + 90)}
+                  title="右转"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
+                >
+                  <ArrowUturnRightIcon className="size-4.5 text-white" />
+                </button>
+                <button
+                  type="button"
+                  onClick={resetSelectedImageView}
+                  title="复位"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10"
+                >
+                  <ArrowPathIcon className="size-4.5 text-white" />
+                </button>
+                <div className="inline-flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-[0.04em] text-white/62">
+                  {previewScale.toFixed(2)}x
+                </div>
+                <button
+                  type="button"
+                  onClick={showSelectedImageOriginal}
+                  disabled={previewUseOriginal}
+                  title="原图"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <PhotoIcon className="size-4.5 text-white" />
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={() => void onCopyLink(selectedImage)}

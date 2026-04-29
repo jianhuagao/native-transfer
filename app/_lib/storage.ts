@@ -1,10 +1,18 @@
 import { del, get, list, put, type BlobAccessType } from "@vercel/blob";
 import path from "node:path";
 import { createPreviewToken } from "@/app/_lib/auth";
+import {
+  getDefaultExtension,
+  getMediaKind,
+  getMediaMimeType,
+  type MediaKind,
+} from "@/app/_lib/media";
 
 export type StoredImage = {
   id: string;
   name: string;
+  mediaType: MediaKind;
+  mimeType: string;
   url: string;
   originalUrl: string;
   uploadedAt: string;
@@ -75,10 +83,11 @@ function decodePathname(name: string) {
 
 export async function saveUpload(file: File) {
   const now = new Date();
-  const originalName = file.name || "image";
-  const extension = path.extname(originalName).toLowerCase() || ".jpg";
+  const originalName = file.name || "media";
+  const extension =
+    path.extname(originalName).toLowerCase() || getDefaultExtension(file.type);
   const baseName =
-    sanitizeBaseName(path.basename(originalName, extension)) || "image";
+    sanitizeBaseName(path.basename(originalName, extension)) || "media";
   const pathname = `${getBlobPrefix()}${formatStamp(now)}-${baseName}${extension}`;
 
   const blob = await put(pathname, file, {
@@ -100,10 +109,13 @@ export async function listImages(): Promise<StoredImage[]> {
     .map((blob) => {
       const encodedPath = encodeURIComponent(blob.pathname);
       const previewToken = createPreviewToken(blob.pathname);
+      const mimeType = getMediaMimeType(null, blob.pathname);
 
       return {
         id: blob.pathname,
         name: path.basename(blob.pathname),
+        mediaType: getMediaKind(mimeType, blob.pathname),
+        mimeType,
         url: `/api/images/${encodedPath}?preview=1&token=${previewToken}`,
         originalUrl: `/api/images/${encodedPath}`,
         uploadedAt: blob.uploadedAt.toISOString(),
@@ -119,10 +131,11 @@ export async function listImages(): Promise<StoredImage[]> {
     });
 }
 
-export async function readImage(name: string) {
+export async function readImage(name: string, range?: string | null) {
   const pathname = decodePathname(name);
   const result = await get(pathname, {
     access: getBlobAccess(),
+    headers: range ? { Range: range } : undefined,
   });
 
   if (!result || result.statusCode !== 200) {
@@ -134,6 +147,8 @@ export async function readImage(name: string) {
     fileName: path.basename(result.blob.pathname),
     mimeType: result.blob.contentType,
     size: result.blob.size,
+    acceptRanges: result.headers.get("accept-ranges"),
+    contentRange: result.headers.get("content-range"),
   };
 }
 

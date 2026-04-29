@@ -2,7 +2,12 @@
 
 import { upload } from "@vercel/blob/client";
 import { PlusIcon } from "@heroicons/react/24/solid";
-import { ProgressiveImage } from "@/app/_components/transfer/progressive-image";
+import {
+  getMediaKind,
+  MEDIA_INPUT_ACCEPT,
+  type MediaKind,
+} from "@/app/_lib/media";
+import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
   buildUploadPath,
   isTouchLikeDevice,
@@ -26,6 +31,7 @@ export function TransferUploadPanel({
   const [uploadStatus, setUploadStatus] = useState("");
   const [recentImageUrl, setRecentImageUrl] = useState<string | null>(null);
   const [recentImageName, setRecentImageName] = useState("");
+  const [recentMediaType, setRecentMediaType] = useState<MediaKind>("image");
 
   const uploadRadius = 32;
   const uploadStrokeWidth = 4;
@@ -45,7 +51,11 @@ export function TransferUploadPanel({
     }
   }
 
-  function commitRecentImage(previewUrl: string, fileName: string) {
+  function commitRecentImage(
+    previewUrl: string,
+    fileName: string,
+    mediaType: MediaKind,
+  ) {
     setRecentImageUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -55,20 +65,25 @@ export function TransferUploadPanel({
       return previewUrl;
     });
     setRecentImageName(fileName);
+    setRecentMediaType(mediaType);
   }
 
-  function scheduleRecentImage(previewUrl: string, fileName: string) {
+  function scheduleRecentImage(
+    previewUrl: string,
+    fileName: string,
+    mediaType: MediaKind,
+  ) {
     clearPreviewTimer();
 
     const delay = isTouchLikeDevice() ? 260 : 0;
 
     if (delay === 0) {
-      commitRecentImage(previewUrl, fileName);
+      commitRecentImage(previewUrl, fileName, mediaType);
       return;
     }
 
     previewTimerRef.current = window.setTimeout(() => {
-      commitRecentImage(previewUrl, fileName);
+      commitRecentImage(previewUrl, fileName, mediaType);
       previewTimerRef.current = null;
     }, delay);
   }
@@ -86,6 +101,7 @@ export function TransferUploadPanel({
       return null;
     });
     setRecentImageName("");
+    setRecentMediaType("image");
     triggerPicker();
   }
 
@@ -101,7 +117,9 @@ export function TransferUploadPanel({
     setUploading(true);
 
     try {
-      await upload(buildUploadPath(file.name), file, {
+      const mediaType = getMediaKind(file.type, file.name);
+
+      await upload(buildUploadPath(file.name, file.type), file, {
         access: "private",
         handleUploadUrl: "/api/images/upload",
         multipart: true,
@@ -115,7 +133,7 @@ export function TransferUploadPanel({
       setUploadProgress(100);
       setUploadStatus("传输完成");
       onUploadSuccess();
-      scheduleRecentImage(previewUrl, file.name);
+      scheduleRecentImage(previewUrl, file.name, mediaType);
       await onUploaded();
     } catch (error) {
       const message =
@@ -148,7 +166,7 @@ export function TransferUploadPanel({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={MEDIA_INPUT_ACCEPT}
         onChange={handleFileChange}
         className="hidden"
       />
@@ -206,13 +224,21 @@ export function TransferUploadPanel({
 
           {recentImageUrl ? (
             <>
-              <ProgressiveImage
+              <MediaPreview
                 src={recentImageUrl}
                 alt={recentImageName || "Uploaded image"}
-                fill
-                unoptimized
-                sizes="5rem"
+                mediaType={recentMediaType}
                 className="object-cover transition duration-500 group-hover:scale-105"
+                imageProps={{
+                  fill: true,
+                  unoptimized: true,
+                  sizes: "5rem",
+                }}
+                showVideoBadge={false}
+                videoProps={{
+                  autoPlay: true,
+                  loop: true,
+                }}
               />
               <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.34))]" />
             </>
@@ -227,7 +253,7 @@ export function TransferUploadPanel({
 
         <span className="min-w-0">
           <span className="block text-base font-semibold text-white">
-            上传原图
+            上传媒体
           </span>
           <span className="mt-1 block max-w-[13rem] truncate text-sm text-white/62">
             {uploadStatus || (uploading ? "传输中" : "不压缩，不转换")}

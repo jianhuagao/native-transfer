@@ -2,6 +2,7 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 
 import { isAuthorized } from "@/app/_lib/auth";
+import { ALLOWED_UPLOAD_CONTENT_TYPES } from "@/app/_lib/media";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
 
         return {
-          allowedContentTypes: ["image/*"],
+          allowedContentTypes: ALLOWED_UPLOAD_CONTENT_TYPES,
           addRandomSuffix: false,
           maximumSizeInBytes: 1024 * 1024 * 200,
         };

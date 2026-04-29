@@ -1,3 +1,5 @@
+import { getDefaultExtension } from "@/app/_lib/media";
+
 export function formatFileSize(size: number) {
   if (size < 1024) {
     return `${size} B`;
@@ -22,21 +24,21 @@ function pad(value: number) {
   return value.toString().padStart(2, "0");
 }
 
-export function buildUploadPath(fileName: string) {
+export function buildUploadPath(fileName: string, contentType?: string) {
   const now = new Date();
   const dotIndex = fileName.lastIndexOf(".");
   const hasExtension = dotIndex > 0;
   const rawBaseName = hasExtension ? fileName.slice(0, dotIndex) : fileName;
   const extension = hasExtension
     ? fileName.slice(dotIndex).toLowerCase()
-    : ".jpg";
+    : getDefaultExtension(contentType);
   const baseName =
     rawBaseName
       .normalize("NFKD")
       .replace(/[^\w.-]+/g, "-")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "")
-      .toLowerCase() || "image";
+      .toLowerCase() || "media";
 
   const stamp = [
     now.getFullYear().toString(),

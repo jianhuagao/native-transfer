@@ -1,7 +1,7 @@
 import { ArrowPathIcon, PowerIcon } from "@heroicons/react/24/solid";
 
 type AppHeaderProps = {
-  imageCount: number;
+  mediaCount: number;
   refreshingImages: boolean;
   pageError: string;
   onRefreshImages: () => void;
@@ -9,7 +9,7 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({
-  imageCount,
+  mediaCount,
   refreshingImages,
   pageError,
   onRefreshImages,
@@ -23,7 +23,7 @@ export function AppHeader({
             Native Transfer
           </h1>
           <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-xs text-white/45">
-            已保存 {imageCount} 张
+            已保存 {mediaCount} 个
           </div>
         </div>
 
