@@ -61,8 +61,3 @@ export function buildDeleteImagePath(imageId: string) {
     .map((segment) => encodeURIComponent(segment))
     .join("/")}`;
 }
-
-export function withRefreshVersion(url: string, version: number) {
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}v=${version}`;
-}

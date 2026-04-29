@@ -1,18 +1,15 @@
 import { HISTORY_GRID_STYLE } from "@/app/_components/transfer/constants";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import type { StoredImage } from "@/app/_components/transfer/types";
-import { withRefreshVersion } from "@/app/_components/transfer/utils";
 
 type HistoryPanelProps = {
   historyLoading: boolean;
-  imageRefreshVersion: number;
   images: StoredImage[];
   onOpenImage: (image: StoredImage) => void;
 };
 
 export function HistoryPanel({
   historyLoading,
-  imageRefreshVersion,
   images,
   onOpenImage,
 }: HistoryPanelProps) {
@@ -38,7 +35,7 @@ export function HistoryPanel({
             >
               <div className="relative aspect-[0.82] overflow-hidden">
                 <MediaPreview
-                  src={withRefreshVersion(image.url, imageRefreshVersion)}
+                  src={image.url}
                   alt={image.name}
                   mediaType={image.mediaType}
                   className="object-cover transition duration-700 group-hover:scale-105"

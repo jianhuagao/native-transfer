@@ -17,7 +17,6 @@ import {
 import type { StoredImage } from "@/app/_components/transfer/types";
 import {
   formatFileSize,
-  withRefreshVersion,
 } from "@/app/_components/transfer/utils";
 import {
   TransformComponent,
@@ -28,7 +27,6 @@ import { useEffect, useRef, useState } from "react";
 
 type ImageViewerModalProps = {
   deletingId: string | null;
-  imageRefreshVersion: number;
   images: StoredImage[];
   selectedImage: StoredImage;
   onClose: () => void;
@@ -40,7 +38,6 @@ type ImageViewerModalProps = {
 
 export function ImageViewerModal({
   deletingId,
-  imageRefreshVersion,
   images,
   selectedImage,
   onClose,
@@ -152,10 +149,7 @@ export function ImageViewerModal({
           {selectedIsVideo ? (
             <div className="flex h-full w-full items-center justify-center p-4 pt-24 pb-16 sm:p-8 sm:pt-24 sm:pb-20">
               <video
-                src={withRefreshVersion(
-                  selectedImage.originalUrl,
-                  imageRefreshVersion,
-                )}
+                src={selectedImage.url}
                 controls
                 autoPlay
                 playsInline
@@ -202,10 +196,7 @@ export function ImageViewerModal({
                     src={
                       previewUseOriginal
                         ? selectedImage.originalUrl
-                        : withRefreshVersion(
-                            selectedImage.url,
-                            imageRefreshVersion,
-                          )
+                        : selectedImage.url
                     }
                     alt={selectedImage.name}
                     onLoad={() => setSelectedImageLoading(false)}

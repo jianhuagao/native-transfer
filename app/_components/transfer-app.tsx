@@ -16,7 +16,6 @@ import {
   buildDeleteImagePath,
   formatFileSize,
   isTouchLikeDevice,
-  withRefreshVersion,
 } from "@/app/_components/transfer/utils";
 import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
 import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
@@ -139,13 +138,11 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
 
 function GalleryRail({
   historyLoading,
-  imageRefreshVersion,
   images,
   onOpenImage,
   onScrollToGallery,
 }: {
   historyLoading: boolean;
-  imageRefreshVersion: number;
   images: StoredImage[];
   onOpenImage: (image: StoredImage) => void;
   onScrollToGallery: () => void;
@@ -202,7 +199,7 @@ function GalleryRail({
                 className="group relative h-24 overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70 sm:h-32 lg:h-36"
               >
                 <MediaPreview
-                  src={withRefreshVersion(image.url, imageRefreshVersion)}
+                  src={image.url}
                   alt={image.name}
                   mediaType={image.mediaType}
                   className="object-cover transition duration-500 group-hover:scale-105"
@@ -249,7 +246,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
-  const [imageRefreshVersion, setImageRefreshVersion] = useState(0);
   const [confettiToken, setConfettiToken] = useState(0);
   const [confettiVisible, setConfettiVisible] = useState(false);
   const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
@@ -377,7 +373,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     try {
       await refreshImages({ randomizeHero: true });
       setPageError("");
-      setImageRefreshVersion((current) => current + 1);
     } catch {
       setPageError("刷新失败，请稍后重试。");
     } finally {
@@ -569,7 +564,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
         {heroImage?.mediaType === "video" ? (
           <MediaPreview
-            src={withRefreshVersion(heroImage.url, imageRefreshVersion)}
+            src={heroImage.url}
             alt={heroImage.name}
             mediaType={heroImage.mediaType}
             className="absolute inset-0 object-cover"
@@ -582,7 +577,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
           />
         ) : heroImage ? (
           <MediaPreview
-            src={withRefreshVersion(heroImage.url, imageRefreshVersion)}
+            src={heroImage.url}
             alt={heroImage.name}
             mediaType={heroImage.mediaType}
             className="object-cover"
@@ -623,7 +618,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
         <GalleryRail
           historyLoading={historyLoading}
-          imageRefreshVersion={imageRefreshVersion}
           images={images}
           onOpenImage={setSelectedImage}
           onScrollToGallery={scrollToGallery}
@@ -646,7 +640,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
           </div>
           <HistoryPanel
             historyLoading={historyLoading}
-            imageRefreshVersion={imageRefreshVersion}
             images={images}
             onOpenImage={setSelectedImage}
           />
@@ -657,7 +650,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         <ImageViewerModal
           key={selectedImage.id}
           deletingId={deletingId}
-          imageRefreshVersion={imageRefreshVersion}
           images={images}
           selectedImage={selectedImage}
           onClose={() => setSelectedImage(null)}
