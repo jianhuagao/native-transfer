@@ -21,6 +21,14 @@ type MediaPreviewProps = {
   >;
 };
 
+function withVideoFirstFrameHint(src: string) {
+  if (src.includes("#")) {
+    return src;
+  }
+
+  return `${src}#t=0.001`;
+}
+
 export function MediaPreview({
   alt,
   className,
@@ -40,7 +48,7 @@ export function MediaPreview({
           muted={videoProps?.muted ?? true}
           playsInline={videoProps?.playsInline ?? true}
           preload={videoProps?.preload ?? "metadata"}
-          src={src}
+          src={withVideoFirstFrameHint(src)}
         />
         {showVideoBadge ? (
           <span className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/42 text-white shadow-[0_10px_30px_rgba(0,0,0,0.34)] backdrop-blur-md">

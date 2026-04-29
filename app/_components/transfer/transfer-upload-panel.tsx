@@ -228,7 +228,7 @@ export function TransferUploadPanel({
                 src={recentImageUrl}
                 alt={recentImageName || "Uploaded image"}
                 mediaType={recentMediaType}
-                className="object-cover transition duration-500 group-hover:scale-105"
+                className="object-cover transition rounded-full duration-500 group-hover:scale-105"
                 imageProps={{
                   fill: true,
                   unoptimized: true,
@@ -240,7 +240,7 @@ export function TransferUploadPanel({
                   loop: true,
                 }}
               />
-              <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.34))]" />
+              {/* <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.34))]" /> */}
             </>
           ) : uploading ? (
             <span className="relative z-10 text-lg font-semibold text-white">

@@ -20,6 +20,12 @@ export type StoredImage = {
   size: number;
 };
 
+export type StorageUsage = {
+  totalBytes: number;
+  usedBytes: number;
+  percent: number;
+};
+
 function pad(value: number) {
   return value.toString().padStart(2, "0");
 }
@@ -71,6 +77,45 @@ function getBlobAccess(): BlobAccessType {
 
 function getBlobPrefix() {
   return "uploads/";
+}
+
+function parseStorageCapacity(value?: string | null) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return 0;
+  }
+
+  const match = normalized.match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)?$/i);
+
+  if (!match) {
+    return 0;
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2]?.toLowerCase() ?? "b";
+  const multipliers: Record<string, number> = {
+    b: 1,
+    kb: 1024,
+    mb: 1024 * 1024,
+    gb: 1024 * 1024 * 1024,
+    tb: 1024 * 1024 * 1024 * 1024,
+  };
+
+  return Math.max(0, Math.round(amount * multipliers[unit]));
+}
+
+export function getStorageUsage(images: StoredImage[]): StorageUsage {
+  const usedBytes = images.reduce((total, image) => total + image.size, 0);
+  const totalBytes = parseStorageCapacity(process.env.STORAGE_TOTAL_CAPACITY);
+  const percent =
+    totalBytes > 0 ? Math.min(100, (usedBytes / totalBytes) * 100) : 0;
+
+  return {
+    totalBytes,
+    usedBytes,
+    percent,
+  };
 }
 
 function decodePathname(name: string) {
@@ -138,7 +183,13 @@ export async function readImage(name: string, range?: string | null) {
     headers: range ? { Range: range } : undefined,
   });
 
-  if (!result || result.statusCode !== 200) {
+  const statusCode = result?.statusCode as number | undefined;
+
+  if (
+    !result ||
+    !result.stream ||
+    (statusCode !== 200 && statusCode !== 206)
+  ) {
     throw new Error("Blob not found");
   }
 
@@ -147,7 +198,9 @@ export async function readImage(name: string, range?: string | null) {
     fileName: path.basename(result.blob.pathname),
     mimeType: result.blob.contentType,
     size: result.blob.size,
+    statusCode,
     acceptRanges: result.headers.get("accept-ranges"),
+    contentLength: result.headers.get("content-length"),
     contentRange: result.headers.get("content-range"),
   };
 }

@@ -7,11 +7,14 @@ import { LoginScreen } from "@/app/_components/transfer/login-screen";
 import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
 import type {
   ConfettiKind,
+  ImagesPayload,
+  StorageUsage,
   StoredImage,
   TransferAppProps,
 } from "@/app/_components/transfer/types";
 import {
   buildDeleteImagePath,
+  formatFileSize,
   isTouchLikeDevice,
   withRefreshVersion,
 } from "@/app/_components/transfer/utils";
@@ -21,9 +24,16 @@ import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
   ArrowPathIcon,
   ChevronUpIcon,
+  CircleStackIcon,
   PowerIcon,
 } from "@heroicons/react/24/solid";
 import { startTransition, useEffect, useRef, useState } from "react";
+
+const EMPTY_STORAGE_USAGE: StorageUsage = {
+  totalBytes: 0,
+  usedBytes: 0,
+  percent: 0,
+};
 
 function pickRandomImage(images: StoredImage[]) {
   if (images.length === 0) {
@@ -55,6 +65,58 @@ function getDockPreviewCount() {
   }
 
   return 2;
+}
+
+function canUseAutoScrollJump() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.matchMedia("(min-width: 768px) and (pointer: fine)").matches;
+}
+
+function formatStoragePercent(percent: number, usedBytes: number) {
+  if (usedBytes > 0 && percent > 0 && percent < 1) {
+    return "<1%";
+  }
+
+  return `${Math.round(percent)}%`;
+}
+
+function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
+  const hasQuota = usage.totalBytes > 0;
+  const progressPercent = hasQuota ? Math.min(100, usage.percent) : 0;
+
+  return (
+    <div
+      className="flex h-10 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78"
+      title={
+        hasQuota
+          ? `${formatFileSize(usage.usedBytes)} / ${formatFileSize(
+              usage.totalBytes,
+            )}`
+          : `已用 ${formatFileSize(usage.usedBytes)}`
+      }
+    >
+      <CircleStackIcon className="size-4.5 shrink-0 text-cyan-100/86" />
+      <div className="min-w-[5.5rem]">
+        <div className="flex items-center justify-between gap-2 text-[11px] leading-none">
+          <span className="text-white/58">容量</span>
+          <span className="font-medium text-white">
+            {hasQuota
+              ? formatStoragePercent(usage.percent, usage.usedBytes)
+              : formatFileSize(usage.usedBytes)}
+          </span>
+        </div>
+        <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/12">
+          <div
+            className="h-full rounded-full bg-cyan-100 transition-[width] duration-500"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function GalleryRail({
@@ -153,6 +215,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const [authNotice, setAuthNotice] = useState("");
   const [pageError, setPageError] = useState("");
   const [images, setImages] = useState<StoredImage[]>([]);
+  const [storageUsage, setStorageUsage] =
+    useState<StorageUsage>(EMPTY_STORAGE_USAGE);
   const [heroImage, setHeroImage] = useState<StoredImage | null>(null);
   const [historyLoading, setHistoryLoading] = useState(initialAuthorized);
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
@@ -178,11 +242,12 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
           throw new Error("load failed");
         }
 
-        const payload = (await response.json()) as { images: StoredImage[] };
+        const payload = (await response.json()) as ImagesPayload;
 
         if (!cancelled) {
           setPageError("");
           setImages(payload.images);
+          setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
           setHeroImage(pickRandomImage(payload.images));
         }
       })
@@ -239,6 +304,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     setPageError("");
     setAuthorized(false);
     setImages([]);
+    setStorageUsage(EMPTY_STORAGE_USAGE);
     setHeroImage(null);
     setSelectedImage(null);
   }
@@ -256,9 +322,10 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
       throw new Error("refresh failed");
     }
 
-    const payload = (await response.json()) as { images: StoredImage[] };
+    const payload = (await response.json()) as ImagesPayload;
     startTransition(() => {
       setImages(payload.images);
+      setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
       setHeroImage((current) => {
         const currentStillExists = payload.images.some(
           (image) => image.id === current?.id,
@@ -303,8 +370,9 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         throw new Error("delete failed");
       }
 
-      const payload = (await response.json()) as { images: StoredImage[] };
+      const payload = (await response.json()) as ImagesPayload;
       setImages(payload.images);
+      setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
       setHeroImage((current) => {
         if (!current || current.id === image.id) {
           return pickRandomImage(payload.images);
@@ -360,6 +428,10 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   function handleGalleryWheel(event: React.WheelEvent<HTMLElement>) {
+    if (!canUseAutoScrollJump()) {
+      return;
+    }
+
     if (event.deltaY >= -18 || !galleryRef.current) {
       return;
     }
@@ -384,10 +456,15 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   }
 
   function handleHeroWheel(event: React.WheelEvent<HTMLElement>) {
+    if (!canUseAutoScrollJump()) {
+      return;
+    }
+
     if (event.deltaY <= 18) {
       return;
     }
 
+    event.preventDefault();
     scrollToGallery();
   }
 
@@ -413,7 +490,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         />
       ) : null}
 
-      <div className="fixed right-4 top-4 z-40 flex items-center gap-2 rounded-full border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:right-6 sm:top-6">
+      <div className="fixed right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:right-6 sm:top-6 sm:max-w-none">
+        <StorageUsageBadge usage={storageUsage} />
         <button
           type="button"
           onClick={() => void handleRefreshImages()}

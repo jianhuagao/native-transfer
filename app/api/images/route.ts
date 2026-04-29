@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isAuthorized } from "@/app/_lib/auth";
-import { listImages } from "@/app/_lib/storage";
+import { getStorageUsage, listImages } from "@/app/_lib/storage";
 
 export const runtime = "nodejs";
 
@@ -16,5 +16,5 @@ export async function GET() {
 
   const images = await listImages();
 
-  return NextResponse.json({ images });
+  return NextResponse.json({ images, storageUsage: getStorageUsage(images) });
 }

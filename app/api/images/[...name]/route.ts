@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { isAuthorized, verifyPreviewToken } from "@/app/_lib/auth";
-import { listImages, readImage, removeImage } from "@/app/_lib/storage";
+import {
+  getStorageUsage,
+  listImages,
+  readImage,
+  removeImage,
+} from "@/app/_lib/storage";
 
 export const runtime = "nodejs";
 
@@ -29,14 +34,22 @@ export async function GET(
   }
 
   try {
-    const { stream, fileName, mimeType, size, acceptRanges, contentRange } =
-      await readImage(pathname, request.headers.get("range"));
+    const {
+      stream,
+      fileName,
+      mimeType,
+      size,
+      statusCode,
+      acceptRanges,
+      contentLength,
+      contentRange,
+    } = await readImage(pathname, request.headers.get("range"));
     const disposition = isDownload
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
     const headers: Record<string, string> = {
       "Content-Type": mimeType,
-      "Content-Length": size.toString(),
+      "Content-Length": contentLength ?? size.toString(),
       "Content-Disposition": disposition,
       "Cache-Control": previewAllowed
         ? "public, max-age=31536000, immutable"
@@ -52,7 +65,7 @@ export async function GET(
     }
 
     return new NextResponse(stream, {
-      status: contentRange ? 206 : 200,
+      status: statusCode,
       headers,
     });
   } catch {
@@ -73,5 +86,9 @@ export async function DELETE(
 
   const images = await listImages();
 
-  return NextResponse.json({ ok: true, images });
+  return NextResponse.json({
+    ok: true,
+    images,
+    storageUsage: getStorageUsage(images),
+  });
 }

@@ -14,6 +14,17 @@ export type StoredImage = {
   size: number;
 };
 
+export type StorageUsage = {
+  totalBytes: number;
+  usedBytes: number;
+  percent: number;
+};
+
+export type ImagesPayload = {
+  images: StoredImage[];
+  storageUsage: StorageUsage;
+};
+
 export type TransferAppProps = {
   initialAuthorized: boolean;
 };
