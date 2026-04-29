@@ -179,7 +179,7 @@ export function TransferUploadPanel({
         disabled={uploading}
         className="group inline-flex max-w-full items-center gap-3 rounded-[28px] border border-white/18 bg-black/30 p-3 pr-5 text-left shadow-[0_20px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-white/36 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        <span className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border border-white/14 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
+        <span className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden  bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
           {!recentImageUrl ? (
             <svg
               className="pointer-events-none absolute -inset-1 -rotate-90 overflow-visible"

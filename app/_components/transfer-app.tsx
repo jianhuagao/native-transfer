@@ -482,7 +482,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
             <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
               Native Transfer
             </h1>
-            <div className="mt-7">
+            <div className="mt-14">
               <TransferUploadPanel
                 onUploaded={refreshImages}
                 onUploadSuccess={() => playSuccessConfetti("upload")}
