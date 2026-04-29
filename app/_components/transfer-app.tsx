@@ -433,7 +433,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
           title="退出登录"
           className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
         >
-          <PowerIcon className="size-4.5" />
+          <PowerIcon className="size-5" />
         </button>
       </div>
 
