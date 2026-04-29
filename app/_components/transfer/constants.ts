@@ -6,7 +6,7 @@ export const tabs: { key: TabKey; label: string; description: string }[] = [
 ];
 
 export const HISTORY_GRID_STYLE = {
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 14rem), 1fr))",
+  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 12rem), 1fr))",
 };
 
 export const IMAGE_PLACEHOLDER = ("data:image/svg+xml;charset=utf-8," +

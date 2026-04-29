@@ -1,32 +1,155 @@
 "use client";
 
 import { SuccessConfetti } from "@/app/_components/success-confetti";
-import { AppHeader } from "@/app/_components/transfer/app-header";
 import { HistoryPanel } from "@/app/_components/transfer/history-panel";
 import { ImageViewerModal } from "@/app/_components/transfer/image-viewer-modal";
 import { LoginScreen } from "@/app/_components/transfer/login-screen";
-import { TabSwitcher } from "@/app/_components/transfer/tab-switcher";
 import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
 import type {
   ConfettiKind,
   StoredImage,
-  TabKey,
   TransferAppProps,
 } from "@/app/_components/transfer/types";
 import {
   buildDeleteImagePath,
   isTouchLikeDevice,
+  withRefreshVersion,
 } from "@/app/_components/transfer/utils";
 import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
 import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
-import { startTransition, useEffect, useState } from "react";
+import {
+  ArrowPathIcon,
+  ChevronUpIcon,
+  PowerIcon,
+} from "@heroicons/react/24/solid";
+import { startTransition, useEffect, useRef, useState } from "react";
+import { ProgressiveImage } from "@/app/_components/transfer/progressive-image";
+
+function pickRandomImage(images: StoredImage[]) {
+  if (images.length === 0) {
+    return null;
+  }
+
+  return images[Math.floor(Math.random() * images.length)] ?? null;
+}
+
+function getDockPreviewCount() {
+  if (typeof window === "undefined") {
+    return 4;
+  }
+
+  if (window.innerWidth >= 1536) {
+    return 6;
+  }
+
+  if (window.innerWidth >= 1280) {
+    return 5;
+  }
+
+  if (window.innerWidth >= 768) {
+    return 4;
+  }
+
+  if (window.innerWidth >= 640) {
+    return 3;
+  }
+
+  return 2;
+}
+
+function GalleryRail({
+  historyLoading,
+  imageRefreshVersion,
+  images,
+  onOpenImage,
+  onScrollToGallery,
+}: {
+  historyLoading: boolean;
+  imageRefreshVersion: number;
+  images: StoredImage[];
+  onOpenImage: (image: StoredImage) => void;
+  onScrollToGallery: () => void;
+}) {
+  const [previewCount, setPreviewCount] = useState(4);
+  const dockImages = images.slice(0, previewCount);
+
+  useEffect(() => {
+    function syncPreviewCount() {
+      setPreviewCount(getDockPreviewCount());
+    }
+
+    syncPreviewCount();
+    window.addEventListener("resize", syncPreviewCount);
+
+    return () => {
+      window.removeEventListener("resize", syncPreviewCount);
+    };
+  }, []);
+
+  return (
+    <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-4 sm:px-6 lg:px-10">
+      <button
+        type="button"
+        aria-label="展开图库"
+        title="展开图库"
+        onClick={onScrollToGallery}
+        className="mx-auto mb-2 flex h-8 w-12 items-center justify-center rounded-full border border-white/14 bg-black/28 text-white/72 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:bg-white/14"
+      >
+        <ChevronUpIcon className="size-5" />
+      </button>
+
+      <div
+        data-dock-rail
+        className="mx-auto max-w-[96rem] rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-[32px] sm:px-4 sm:py-4"
+      >
+        {historyLoading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {Array.from({ length: previewCount }).map((_, index) => (
+              <div
+                key={index}
+                className="h-24 animate-pulse rounded-[22px] border border-white/8 bg-white/10 sm:h-32 lg:h-36"
+              />
+            ))}
+          </div>
+        ) : images.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {dockImages.map((image) => (
+              <button
+                key={image.id}
+                type="button"
+                data-dock-item
+                onClick={() => onOpenImage(image)}
+                className="group relative h-24 overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70 sm:h-32 lg:h-36"
+              >
+                <ProgressiveImage
+                  src={withRefreshVersion(image.url, imageRefreshVersion)}
+                  alt={image.name}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw"
+                  quality={70}
+                  decoding="async"
+                  className="object-cover transition duration-500 group-hover:scale-105"
+                />
+                <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-28 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62">
+            暂无图片
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [authNotice, setAuthNotice] = useState("");
   const [pageError, setPageError] = useState("");
-  const [activeTab, setActiveTab] = useState<TabKey>("transfer");
   const [images, setImages] = useState<StoredImage[]>([]);
+  const [heroImage, setHeroImage] = useState<StoredImage | null>(null);
   const [historyLoading, setHistoryLoading] = useState(initialAuthorized);
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -35,6 +158,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
   const [confettiToken, setConfettiToken] = useState(0);
   const [confettiVisible, setConfettiVisible] = useState(false);
   const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
+  const galleryRef = useRef<HTMLElement | null>(null);
+  const lastAutoScrollAtRef = useRef(0);
 
   useEffect(() => {
     if (!authorized) {
@@ -54,6 +179,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
         if (!cancelled) {
           setPageError("");
           setImages(payload.images);
+          setHeroImage(pickRandomImage(payload.images));
         }
       })
       .catch(() => {
@@ -109,8 +235,8 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     setPageError("");
     setAuthorized(false);
     setImages([]);
+    setHeroImage(null);
     setSelectedImage(null);
-    setActiveTab("transfer");
   }
 
   function playSuccessConfetti(kind: ConfettiKind) {
@@ -119,7 +245,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     setConfettiToken((current) => current + 1);
   }
 
-  async function refreshImages() {
+  async function refreshImages(options: { randomizeHero?: boolean } = {}) {
     const response = await fetch("/api/images", { cache: "no-store" });
 
     if (!response.ok) {
@@ -129,6 +255,17 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     const payload = (await response.json()) as { images: StoredImage[] };
     startTransition(() => {
       setImages(payload.images);
+      setHeroImage((current) => {
+        const currentStillExists = payload.images.some(
+          (image) => image.id === current?.id,
+        );
+
+        if (options.randomizeHero || !current || !currentStillExists) {
+          return pickRandomImage(payload.images);
+        }
+
+        return current;
+      });
     });
   }
 
@@ -140,7 +277,7 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     setRefreshingImages(true);
 
     try {
-      await refreshImages();
+      await refreshImages({ randomizeHero: true });
       setPageError("");
       setImageRefreshVersion((current) => current + 1);
     } catch {
@@ -164,6 +301,13 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
 
       const payload = (await response.json()) as { images: StoredImage[] };
       setImages(payload.images);
+      setHeroImage((current) => {
+        if (!current || current.id === image.id) {
+          return pickRandomImage(payload.images);
+        }
+
+        return current;
+      });
       setPageError("");
       if (selectedImage?.id === image.id) {
         setSelectedImage(null);
@@ -197,12 +341,58 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
     }
   }
 
+  function scrollToGallery() {
+    galleryRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function scrollToHome() {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function handleGalleryWheel(event: React.WheelEvent<HTMLElement>) {
+    if (event.deltaY >= -18 || !galleryRef.current) {
+      return;
+    }
+
+    const galleryTop =
+      galleryRef.current.getBoundingClientRect().top + window.scrollY;
+    const isNearGalleryTop = window.scrollY <= galleryTop + 96;
+
+    if (!isNearGalleryTop) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const now = Date.now();
+    if (now - lastAutoScrollAtRef.current < 700) {
+      return;
+    }
+
+    lastAutoScrollAtRef.current = now;
+    scrollToHome();
+  }
+
+  function handleHeroWheel(event: React.WheelEvent<HTMLElement>) {
+    if (event.deltaY <= 18) {
+      return;
+    }
+
+    scrollToGallery();
+  }
+
   if (!authorized) {
     return <LoginScreen notice={authNotice} onLogin={handleLogin} />;
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <main className="min-h-screen bg-[#050505] text-white">
       {confettiKind ? (
         <SuccessConfetti
           playToken={confettiToken}
@@ -218,34 +408,103 @@ export function TransferApp({ initialAuthorized }: TransferAppProps) {
           }}
         />
       ) : null}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(89,168,255,0.18),transparent_28%),radial-gradient(circle_at_85%_12%,rgba(237,244,255,0.08),transparent_18%),radial-gradient(circle_at_20%_80%,rgba(50,110,255,0.16),transparent_26%),linear-gradient(180deg,#03060c_0%,#080b12_50%,#020304_100%)]" />
-      <div className="pointer-events-none absolute left-1/2 top-0 h-64 w-220 -translate-x-1/2 rounded-full bg-cyan-200/8 blur-3xl" />
 
-      <section className="relative mx-auto flex min-h-[calc(100vh-2rem)] w-full flex-col rounded-4xl border border-white/10 bg-white/6 p-4 shadow-[0_32px_120px_rgba(0,0,0,0.52)] backdrop-blur-3xl sm:min-h-[calc(100vh-3rem)] sm:p-6">
-        <AppHeader
-          imageCount={images.length}
-          refreshingImages={refreshingImages}
-          pageError={pageError}
-          onRefreshImages={() => void handleRefreshImages()}
-          onLogout={() => void handleLogout()}
+      <div className="fixed right-4 top-4 z-40 flex items-center gap-2 rounded-full border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:right-6 sm:top-6">
+        <button
+          type="button"
+          onClick={() => void handleRefreshImages()}
+          disabled={refreshingImages}
+          aria-label={refreshingImages ? "刷新中" : "刷新图库"}
+          title={refreshingImages ? "刷新中" : "刷新图库"}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+        >
+          <ArrowPathIcon
+            className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          aria-label="退出登录"
+          title="退出登录"
+          className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
+        >
+          <PowerIcon className="size-4.5" />
+        </button>
+      </div>
+
+      <section
+        className="relative flex min-h-[100svh] overflow-hidden"
+        onWheel={handleHeroWheel}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
+        {heroImage ? (
+          <ProgressiveImage
+            src={withRefreshVersion(heroImage.url, imageRefreshVersion)}
+            alt={heroImage.name}
+            fill
+            loading="eager"
+            fetchPriority="high"
+            sizes="100vw"
+            quality={90}
+            className="object-cover"
+            transition={{
+              overlayClassName: "duration-700",
+              imageClassName: "duration-1000 ease-out",
+            }}
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.28)_36%,rgba(0,0,0,0.04)_68%,rgba(0,0,0,0.32)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)]" />
+
+        <div className="relative z-20 flex w-full flex-col px-5 pb-52 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
+          <div className="max-w-xl pt-[8vh] sm:pt-[10vh]">
+            <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
+              Native Transfer
+            </h1>
+            <div className="mt-7">
+              <TransferUploadPanel
+                onUploaded={refreshImages}
+                onUploadSuccess={() => playSuccessConfetti("upload")}
+              />
+            </div>
+            {pageError ? (
+              <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
+                {pageError}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <GalleryRail
+          historyLoading={historyLoading}
+          imageRefreshVersion={imageRefreshVersion}
+          images={images}
+          onOpenImage={setSelectedImage}
+          onScrollToGallery={scrollToGallery}
         />
+      </section>
 
-        <TabSwitcher activeTab={activeTab} onChange={setActiveTab} />
-
-        <div className="flex-1">
-          {activeTab === "transfer" ? (
-            <TransferUploadPanel
-              onUploaded={refreshImages}
-              onUploadSuccess={() => playSuccessConfetti("upload")}
-            />
-          ) : (
-            <HistoryPanel
-              historyLoading={historyLoading}
-              imageRefreshVersion={imageRefreshVersion}
-              images={images}
-              onOpenImage={setSelectedImage}
-            />
-          )}
+      <section
+        ref={galleryRef}
+        onWheel={handleGalleryWheel}
+        className="relative z-10 min-h-screen bg-[#050505] px-4 py-8 sm:px-6 sm:py-10 lg:px-10"
+      >
+        <div className="mx-auto max-w-[96rem]">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <h2 className="text-2xl font-semibold text-white sm:text-3xl">
+              图库
+            </h2>
+            <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-xs text-white/58">
+              {images.length} 张
+            </div>
+          </div>
+          <HistoryPanel
+            historyLoading={historyLoading}
+            imageRefreshVersion={imageRefreshVersion}
+            images={images}
+            onOpenImage={setSelectedImage}
+          />
         </div>
       </section>
 
