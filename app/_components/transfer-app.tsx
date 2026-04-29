@@ -5,6 +5,7 @@ import { HistoryPanel } from "@/app/_components/transfer/history-panel";
 import { ImageViewerModal } from "@/app/_components/transfer/image-viewer-modal";
 import { LoginScreen } from "@/app/_components/transfer/login-screen";
 import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
+import { HERO_IMAGE_PLACEHOLDER } from "@/app/_components/transfer/constants";
 import type {
   ConfettiKind,
   ImagesPayload,
@@ -35,6 +36,63 @@ const EMPTY_STORAGE_USAGE: StorageUsage = {
   usedBytes: 0,
   percent: 0,
 };
+const HERO_CACHE_KEY = "native-transfer:last-hero";
+
+function isStoredImage(value: unknown): value is StoredImage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const image = value as Partial<StoredImage>;
+
+  return (
+    typeof image.id === "string" &&
+    typeof image.name === "string" &&
+    (image.mediaType === "image" || image.mediaType === "video") &&
+    typeof image.mimeType === "string" &&
+    typeof image.url === "string" &&
+    typeof image.originalUrl === "string" &&
+    typeof image.uploadedAt === "string" &&
+    typeof image.uploadedAtLabel === "string" &&
+    typeof image.size === "number"
+  );
+}
+
+function readCachedHeroImage() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const cached = window.localStorage.getItem(HERO_CACHE_KEY);
+
+    if (!cached) {
+      return null;
+    }
+
+    const parsed = JSON.parse(cached) as unknown;
+    return isStoredImage(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedHeroImage(image: StoredImage | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (image) {
+      window.localStorage.setItem(HERO_CACHE_KEY, JSON.stringify(image));
+      return;
+    }
+
+    window.localStorage.removeItem(HERO_CACHE_KEY);
+  } catch {
+    return;
+  }
+}
 
 function pickRandomImage(images: StoredImage[]) {
   if (images.length === 0) {
@@ -251,6 +309,37 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
   const galleryRef = useRef<HTMLElement | null>(null);
   const lastAutoScrollAtRef = useRef(0);
+
+  useEffect(() => {
+    if (!authorized || heroImage) {
+      return;
+    }
+
+    let cancelled = false;
+
+    Promise.resolve().then(() => {
+      const cachedHeroImage = readCachedHeroImage();
+
+      if (!cancelled && cachedHeroImage) {
+        setHeroImage(cachedHeroImage);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authorized, heroImage]);
+
+  useEffect(() => {
+    if (!authorized) {
+      writeCachedHeroImage(null);
+      return;
+    }
+
+    if (heroImage) {
+      writeCachedHeroImage(heroImage);
+    }
+  }, [authorized, heroImage]);
 
   useEffect(() => {
     if (!authorized) {
@@ -562,6 +651,10 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         onWheel={handleHeroWheel}
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
+        <div
+          className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
+          style={{ backgroundImage: `url("${HERO_IMAGE_PLACEHOLDER}")` }}
+        />
         {heroImage?.mediaType === "video" ? (
           <MediaPreview
             src={heroImage.url}
@@ -585,8 +678,9 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
               fill: true,
               loading: "eager",
               fetchPriority: "high",
+              placeholder: HERO_IMAGE_PLACEHOLDER,
               sizes: "100vw",
-              quality: 90,
+              quality: 78,
               transition: {
                 overlayClassName: "duration-700",
                 imageClassName: "duration-1000 ease-out",

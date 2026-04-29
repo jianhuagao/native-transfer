@@ -6,7 +6,6 @@
 
 ![libran](./public/project/c1.jpg)
 ![libran](./public/project/c2.jpg)
-![libran](./public/project/c3.jpg)
 
 ## 功能
 

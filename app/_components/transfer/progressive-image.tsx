@@ -83,7 +83,7 @@ export function ProgressiveImage({
         className={`${className ?? ""} transition ${imageTransitionClassName} ${
           loaded
             ? "scale-100 opacity-100 blur-0"
-            : "scale-[1.02] opacity-0 blur-xl"
+            : "scale-[1.02] opacity-100 blur-xl"
         }`}
       />
     </>
