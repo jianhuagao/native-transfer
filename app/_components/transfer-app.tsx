@@ -92,19 +92,19 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
       className="flex h-10 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78"
       title={
         hasQuota
-          ? `${formatFileSize(usage.usedBytes)} / ${formatFileSize(
-              usage.totalBytes,
-            )}`
+          ? `已用 ${formatStoragePercent(usage.percent, usage.usedBytes)}`
           : `已用 ${formatFileSize(usage.usedBytes)}`
       }
     >
       <CircleStackIcon className="size-4.5 shrink-0 text-cyan-100/86" />
-      <div className="min-w-[5.5rem]">
+      <div className="min-w-[7.25rem]">
         <div className="flex items-center justify-between gap-2 text-[11px] leading-none">
           <span className="text-white/58">容量</span>
           <span className="font-medium text-white">
             {hasQuota
-              ? formatStoragePercent(usage.percent, usage.usedBytes)
+              ? `${formatFileSize(usage.usedBytes)} / ${formatFileSize(
+                  usage.totalBytes,
+                )}`
               : formatFileSize(usage.usedBytes)}
           </span>
         </div>
