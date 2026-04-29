@@ -193,15 +193,17 @@ export async function readImage(name: string, range?: string | null) {
     throw new Error("Blob not found");
   }
 
+  const contentRange = result.headers.get("content-range");
+
   return {
     stream: result.stream,
     fileName: path.basename(result.blob.pathname),
     mimeType: result.blob.contentType,
     size: result.blob.size,
-    statusCode,
+    statusCode: contentRange ? 206 : statusCode,
     acceptRanges: result.headers.get("accept-ranges"),
     contentLength: result.headers.get("content-length"),
-    contentRange: result.headers.get("content-range"),
+    contentRange,
   };
 }
 
