@@ -1,6 +1,5 @@
 "use client";
 
-import { HistoryPanel } from "@/app/_components/transfer/history-panel";
 import { ImageViewerModal } from "@/app/_components/transfer/image-viewer-modal";
 import { LoginScreen } from "@/app/_components/transfer/login-screen";
 import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
@@ -18,15 +17,18 @@ import {
   isTouchLikeDevice,
 } from "@/app/_components/transfer/utils";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
-import type { LenisOptions } from "lenis";
-import { ReactLenis, useLenis } from "lenis/react";
 import {
   ArrowPathIcon,
-  ChevronUpIcon,
   CircleStackIcon,
   PowerIcon,
 } from "@heroicons/react/24/solid";
-import { startTransition, useEffect, useRef, useState } from "react";
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 
 const EMPTY_STORAGE_USAGE: StorageUsage = {
   totalBytes: 0,
@@ -35,6 +37,13 @@ const EMPTY_STORAGE_USAGE: StorageUsage = {
 };
 const HERO_CACHE_KEY = "native-transfer:last-hero";
 const DEFAULT_UPLOAD_MODE = "form-data";
+const DEFAULT_DOCK_COLUMN_COUNT = 4;
+const DEFAULT_DOCK_HEIGHT = 160;
+const MEDIA_GRID_STYLE = {
+  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 13rem), 1fr))",
+};
+const MEDIA_TILE_IMAGE_SIZES =
+  "(max-width: 640px) 50vw, (max-width: 960px) 33vw, (max-width: 1280px) 25vw, (max-width: 1680px) 20vw, 16vw";
 
 function isStoredImage(value: unknown): value is StoredImage {
   if (!value || typeof value !== "object") {
@@ -108,54 +117,6 @@ function pickRandomImage(images: StoredImage[]) {
 
   return images[Math.floor(Math.random() * images.length)] ?? null;
 }
-
-function getDockPreviewCount() {
-  if (typeof window === "undefined") {
-    return 4;
-  }
-
-  if (window.innerWidth >= 1536) {
-    return 6;
-  }
-
-  if (window.innerWidth >= 1280) {
-    return 5;
-  }
-
-  if (window.innerWidth >= 768) {
-    return 4;
-  }
-
-  if (window.innerWidth >= 640) {
-    return 3;
-  }
-
-  return 2;
-}
-
-function canUseAutoScrollJump() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.matchMedia("(min-width: 768px) and (pointer: fine)").matches;
-}
-
-const LENIS_OPTIONS = {
-  autoRaf: true,
-  smoothWheel: true,
-  syncTouch: false,
-  lerp: 0.09,
-  wheelMultiplier: 0.9,
-  prevent: (node) => node.closest("[data-lenis-prevent]") !== null,
-  virtualScroll: ({ event }) => {
-    if (event.type !== "wheel") {
-      return false;
-    }
-
-    return canUseAutoScrollJump();
-  },
-} satisfies LenisOptions;
 
 function formatStoragePercent(percent: number, usedBytes: number) {
   if (usedBytes > 0 && percent > 0 && percent < 1) {
@@ -235,105 +196,312 @@ function StorageSourceSelect({
   );
 }
 
-function GalleryRail({
+function getRenderedGridColumnCount(element: HTMLElement) {
+  const columns = window.getComputedStyle(element).gridTemplateColumns;
+
+  if (!columns || columns === "none") {
+    return 0;
+  }
+
+  return columns.split(" ").filter(Boolean).length;
+}
+
+function useGridColumnCount() {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [columnCount, setColumnCount] = useState(DEFAULT_DOCK_COLUMN_COUNT);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+
+    if (!grid) {
+      return;
+    }
+
+    const gridElement = grid;
+    let frameId = 0;
+
+    function syncColumnCount() {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const nextColumnCount = getRenderedGridColumnCount(gridElement);
+
+        if (nextColumnCount > 0) {
+          setColumnCount((current) =>
+            current === nextColumnCount ? current : nextColumnCount,
+          );
+        }
+      });
+    }
+
+    syncColumnCount();
+
+    const resizeObserver =
+      "ResizeObserver" in window ? new ResizeObserver(syncColumnCount) : null;
+
+    resizeObserver?.observe(gridElement);
+    window.addEventListener("resize", syncColumnCount);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", syncColumnCount);
+    };
+  }, []);
+
+  return { columnCount, gridRef };
+}
+
+function useElementHeight<TElement extends HTMLElement>() {
+  const elementRef = useRef<TElement | null>(null);
+  const [height, setHeight] = useState(DEFAULT_DOCK_HEIGHT);
+
+  useEffect(() => {
+    const element = elementRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const measuredElement = element;
+    let frameId = 0;
+
+    function syncHeight() {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const nextHeight = Math.ceil(
+          measuredElement.getBoundingClientRect().height,
+        );
+
+        if (nextHeight > 0) {
+          setHeight((current) =>
+            current === nextHeight ? current : nextHeight,
+          );
+        }
+      });
+    }
+
+    syncHeight();
+
+    const resizeObserver =
+      "ResizeObserver" in window ? new ResizeObserver(syncHeight) : null;
+
+    resizeObserver?.observe(measuredElement);
+    window.addEventListener("resize", syncHeight);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", syncHeight);
+    };
+  }, []);
+
+  return { elementRef, height };
+}
+
+function MediaTile({
+  image,
+  onOpenImage,
+}: {
+  image: StoredImage;
+  onOpenImage: (image: StoredImage) => void;
+}) {
+  return (
+    <button
+      key={image.id}
+      type="button"
+      onClick={() => onOpenImage(image)}
+      className="group relative aspect-[1.58] overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70"
+    >
+      <MediaPreview
+        src={image.url}
+        alt={image.name}
+        mediaType={image.mediaType}
+        className="object-cover transition duration-500 group-hover:scale-105"
+        imageProps={{
+          fill: true,
+          sizes: MEDIA_TILE_IMAGE_SIZES,
+          quality: 70,
+          decoding: "async",
+        }}
+      />
+      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
+    </button>
+  );
+}
+
+function MediaSkeletonGrid({
+  count,
+  gridRef,
+}: {
+  count: number;
+  gridRef?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div ref={gridRef} className="grid gap-3 sm:gap-4" style={MEDIA_GRID_STYLE}>
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="aspect-[1.58] animate-pulse rounded-[22px] border border-white/8 bg-white/10"
+        />
+      ))}
+    </div>
+  );
+}
+
+function MediaShelf({
   historyLoading,
   images,
   onOpenImage,
-  onScrollToGallery,
 }: {
   historyLoading: boolean;
   images: StoredImage[];
   onOpenImage: (image: StoredImage) => void;
-  onScrollToGallery: () => void;
 }) {
-  const [previewCount, setPreviewCount] = useState(4);
-  const dockImages = images.slice(0, previewCount);
-
-  useEffect(() => {
-    function syncPreviewCount() {
-      setPreviewCount(getDockPreviewCount());
-    }
-
-    syncPreviewCount();
-    window.addEventListener("resize", syncPreviewCount);
-
-    return () => {
-      window.removeEventListener("resize", syncPreviewCount);
-    };
-  }, []);
+  const { columnCount, gridRef } = useGridColumnCount();
+  const { elementRef: dockRef, height: dockHeight } =
+    useElementHeight<HTMLDivElement>();
+  const dockImages = images.slice(0, columnCount);
+  const remainingImages = images.slice(columnCount);
+  const loadingRemainderCount = Math.max(columnCount * 2, 6);
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-4 sm:px-6 lg:px-10">
-      <button
-        type="button"
-        aria-label="展开媒体库"
-        title="展开媒体库"
-        onClick={onScrollToGallery}
-        className="mx-auto mb-2 flex h-8 w-12 items-center justify-center rounded-full border border-white/14 bg-black/28 text-white/72 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl transition hover:bg-white/14"
-      >
-        <ChevronUpIcon className="size-5" />
-      </button>
+    <section
+      className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10"
+      style={{ marginTop: -dockHeight }}
+    >
+      <div className="mx-auto max-w-[96rem]">
+        <div
+          ref={dockRef}
+          data-dock-rail
+          className="rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-[32px] sm:px-4 sm:py-4"
+        >
+          {historyLoading ? (
+            <MediaSkeletonGrid count={columnCount} gridRef={gridRef} />
+          ) : images.length > 0 ? (
+            <div
+              ref={gridRef}
+              className="grid gap-3 sm:gap-4"
+              style={MEDIA_GRID_STYLE}
+            >
+              {dockImages.map((image) => (
+                <MediaTile
+                  key={image.id}
+                  image={image}
+                  onOpenImage={onOpenImage}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex aspect-[1.58] items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62">
+              暂无媒体
+            </div>
+          )}
+        </div>
 
-      <div
-        data-dock-rail
-        className="mx-auto max-w-[96rem] rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-[32px] sm:px-4 sm:py-4"
-      >
         {historyLoading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {Array.from({ length: previewCount }).map((_, index) => (
-              <div
-                key={index}
-                className="h-24 animate-pulse rounded-[22px] border border-white/8 bg-white/10 sm:h-32 lg:h-36"
+          <div className="mt-3 sm:mt-4">
+            <MediaSkeletonGrid count={loadingRemainderCount} />
+          </div>
+        ) : remainingImages.length > 0 ? (
+          <div
+            className="mt-3 grid gap-3 sm:mt-4 sm:gap-4"
+            style={MEDIA_GRID_STYLE}
+          >
+            {remainingImages.map((image) => (
+              <MediaTile
+                key={image.id}
+                image={image}
+                onOpenImage={onOpenImage}
               />
             ))}
           </div>
-        ) : images.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {dockImages.map((image) => (
-              <button
-                key={image.id}
-                type="button"
-                data-dock-item
-                onClick={() => onOpenImage(image)}
-                className="group relative h-24 overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70 sm:h-32 lg:h-36"
-              >
-                <MediaPreview
-                  src={image.url}
-                  alt={image.name}
-                  mediaType={image.mediaType}
-                  className="object-cover transition duration-500 group-hover:scale-105"
-                  imageProps={{
-                    fill: true,
-                    sizes:
-                      "(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1280px) 25vw, (max-width: 1536px) 20vw, 16vw",
-                    quality: 70,
-                    decoding: "async",
-                  }}
-                />
-                <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="flex h-28 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62">
-            暂无媒体
-          </div>
-        )}
+        ) : null}
       </div>
+    </section>
+  );
+}
+
+function HeroBackdrop({
+  blurred,
+  heroImage,
+}: {
+  blurred: boolean;
+  heroImage: StoredImage | null;
+}) {
+  return (
+    <div aria-hidden className="fixed inset-0 z-0 overflow-hidden bg-[#050505]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
+      <div
+        className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
+        style={{ backgroundImage: `url("${HERO_IMAGE_PLACEHOLDER}")` }}
+      />
+      {heroImage ? (
+        <div
+          className={`absolute inset-0 transition duration-700 ease-out ${
+            blurred
+              ? "scale-105 opacity-[0.74] blur-2xl"
+              : "scale-100 opacity-100"
+          }`}
+        >
+          {heroImage.mediaType === "video" ? (
+            <MediaPreview
+              key={`${heroImage.id}:${blurred ? "still" : "motion"}`}
+              src={heroImage.url}
+              alt={heroImage.name}
+              mediaType={heroImage.mediaType}
+              className="absolute inset-0 object-cover"
+              showVideoBadge={false}
+              videoProps={
+                blurred
+                  ? {
+                      "aria-hidden": true,
+                      preload: "metadata",
+                    }
+                  : {
+                      autoPlay: true,
+                      loop: true,
+                      "aria-hidden": true,
+                    }
+              }
+            />
+          ) : (
+            <MediaPreview
+              src={heroImage.url}
+              alt={heroImage.name}
+              mediaType={heroImage.mediaType}
+              className="object-cover"
+              imageProps={{
+                fill: true,
+                loading: "eager",
+                fetchPriority: "high",
+                placeholder: HERO_IMAGE_PLACEHOLDER,
+                sizes: "100vw",
+                quality: 78,
+                transition: {
+                  overlayClassName: "duration-700",
+                  imageClassName: "duration-1000 ease-out",
+                },
+              }}
+            />
+          )}
+        </div>
+      ) : null}
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.28)_36%,rgba(0,0,0,0.04)_68%,rgba(0,0,0,0.32)_100%)]" />
+      <div
+        className={`absolute inset-0 transition duration-700 ${
+          blurred ? "bg-black/38 backdrop-blur-md" : "bg-black/0"
+        }`}
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)]" />
     </div>
   );
 }
 
 export function TransferApp(props: TransferAppProps) {
-  return (
-    <ReactLenis root options={LENIS_OPTIONS}>
-      <TransferAppContent {...props} />
-    </ReactLenis>
-  );
+  return <TransferAppContent {...props} />;
 }
 
 function TransferAppContent({ initialAuthorized }: TransferAppProps) {
-  const lenis = useLenis();
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [authNotice, setAuthNotice] = useState("");
   const [pageError, setPageError] = useState("");
@@ -348,8 +516,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
-  const galleryRef = useRef<HTMLElement | null>(null);
-  const lastAutoScrollAtRef = useRef(0);
+  const [backgroundBlurred, setBackgroundBlurred] = useState(false);
   const activeSource = sources.find((source) => source.id === activeSourceId);
 
   function applyImagesPayload(
@@ -433,6 +600,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
           setAuthorized(false);
           setAuthNotice("登录状态失效，请重新输入密码。");
           setSelectedImage(null);
+          setBackgroundBlurred(false);
         }
       })
       .finally(() => {
@@ -443,6 +611,32 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
     return () => {
       cancelled = true;
+    };
+  }, [authorized]);
+
+  useEffect(() => {
+    if (!authorized) {
+      return;
+    }
+
+    let frameId = 0;
+
+    function syncBackgroundState() {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const blurThreshold = Math.max(32, window.innerHeight * 0.08);
+        setBackgroundBlurred(window.scrollY > blurThreshold);
+      });
+    }
+
+    syncBackgroundState();
+    window.addEventListener("scroll", syncBackgroundState, { passive: true });
+    window.addEventListener("resize", syncBackgroundState);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", syncBackgroundState);
+      window.removeEventListener("resize", syncBackgroundState);
     };
   }, [authorized]);
 
@@ -483,6 +677,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setStorageUsage(EMPTY_STORAGE_USAGE);
     setHeroImage(null);
     setSelectedImage(null);
+    setBackgroundBlurred(false);
   }
 
   async function refreshImages(options: { randomizeHero?: boolean } = {}) {
@@ -600,87 +795,14 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     }
   }
 
-  function scrollToGallery() {
-    if (!galleryRef.current) {
-      return;
-    }
-
-    if (lenis) {
-      lenis.scrollTo(galleryRef.current, {
-        duration: 0.95,
-        lock: true,
-      });
-      return;
-    }
-
-    galleryRef.current.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }
-
-  function scrollToHome() {
-    if (lenis) {
-      lenis.scrollTo(0, {
-        duration: 0.95,
-        lock: true,
-      });
-      return;
-    }
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
-
-  function handleGalleryWheel(event: React.WheelEvent<HTMLElement>) {
-    if (!canUseAutoScrollJump()) {
-      return;
-    }
-
-    if (event.deltaY >= -18 || !galleryRef.current) {
-      return;
-    }
-
-    const galleryTop =
-      galleryRef.current.getBoundingClientRect().top + window.scrollY;
-    const isNearGalleryTop = window.scrollY <= galleryTop + 96;
-
-    if (!isNearGalleryTop) {
-      return;
-    }
-
-    event.preventDefault();
-
-    const now = Date.now();
-    if (now - lastAutoScrollAtRef.current < 700) {
-      return;
-    }
-
-    lastAutoScrollAtRef.current = now;
-    scrollToHome();
-  }
-
-  function handleHeroWheel(event: React.WheelEvent<HTMLElement>) {
-    if (!canUseAutoScrollJump()) {
-      return;
-    }
-
-    if (event.deltaY <= 18) {
-      return;
-    }
-
-    event.preventDefault();
-    scrollToGallery();
-  }
-
   if (!authorized) {
     return <LoginScreen notice={authNotice} onLogin={handleLogin} />;
   }
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
+      <HeroBackdrop blurred={backgroundBlurred} heroImage={heroImage} />
+
       <div className="fixed left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-[24px] border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
         <div className="flex min-w-0 items-center gap-2 sm:contents">
           <StorageSourceSelect
@@ -716,52 +838,8 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         </div>
       </div>
 
-      <section
-        className="relative flex min-h-[100svh] overflow-hidden"
-        onWheel={handleHeroWheel}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
-        <div
-          className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
-          style={{ backgroundImage: `url("${HERO_IMAGE_PLACEHOLDER}")` }}
-        />
-        {heroImage?.mediaType === "video" ? (
-          <MediaPreview
-            src={heroImage.url}
-            alt={heroImage.name}
-            mediaType={heroImage.mediaType}
-            className="absolute inset-0 object-cover"
-            showVideoBadge={false}
-            videoProps={{
-              autoPlay: true,
-              loop: true,
-              "aria-hidden": true,
-            }}
-          />
-        ) : heroImage ? (
-          <MediaPreview
-            src={heroImage.url}
-            alt={heroImage.name}
-            mediaType={heroImage.mediaType}
-            className="object-cover"
-            imageProps={{
-              fill: true,
-              loading: "eager",
-              fetchPriority: "high",
-              placeholder: HERO_IMAGE_PLACEHOLDER,
-              sizes: "100vw",
-              quality: 78,
-              transition: {
-                overlayClassName: "duration-700",
-                imageClassName: "duration-1000 ease-out",
-              },
-            }}
-          />
-        ) : null}
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.28)_36%,rgba(0,0,0,0.04)_68%,rgba(0,0,0,0.32)_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)]" />
-
-        <div className="relative z-20 flex w-full flex-col px-5 pb-52 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
+      <section className="relative z-10 flex min-h-[100svh]">
+        <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
           <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
             <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
               Native Transfer
@@ -780,36 +858,13 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
             ) : null}
           </div>
         </div>
-
-        <GalleryRail
-          historyLoading={historyLoading}
-          images={images}
-          onOpenImage={setSelectedImage}
-          onScrollToGallery={scrollToGallery}
-        />
       </section>
 
-      <section
-        ref={galleryRef}
-        onWheel={handleGalleryWheel}
-        className="relative z-10 min-h-screen bg-[#050505] px-4 py-8 sm:px-6 sm:py-10 lg:px-10"
-      >
-        <div className="mx-auto max-w-[96rem]">
-          <div className="mb-5 flex items-end justify-between gap-4">
-            <h2 className="text-2xl font-semibold text-white sm:text-3xl">
-              媒体库
-            </h2>
-            <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-xs text-white/58">
-              {images.length} 个
-            </div>
-          </div>
-          <HistoryPanel
-            historyLoading={historyLoading}
-            images={images}
-            onOpenImage={setSelectedImage}
-          />
-        </div>
-      </section>
+      <MediaShelf
+        historyLoading={historyLoading}
+        images={images}
+        onOpenImage={setSelectedImage}
+      />
 
       {selectedImage ? (
         <ImageViewerModal
