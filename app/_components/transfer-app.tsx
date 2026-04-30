@@ -1,13 +1,11 @@
 "use client";
 
-import { SuccessConfetti } from "@/app/_components/success-confetti";
 import { HistoryPanel } from "@/app/_components/transfer/history-panel";
 import { ImageViewerModal } from "@/app/_components/transfer/image-viewer-modal";
 import { LoginScreen } from "@/app/_components/transfer/login-screen";
 import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
 import { HERO_IMAGE_PLACEHOLDER } from "@/app/_components/transfer/constants";
 import type {
-  ConfettiKind,
   ImagesPayload,
   StorageSource,
   StorageUsage,
@@ -19,8 +17,6 @@ import {
   formatFileSize,
   isTouchLikeDevice,
 } from "@/app/_components/transfer/utils";
-import copySuccessAnimation from "@/public/lotties/confetti-copy-success.json";
-import uploadSuccessAnimation from "@/public/lotties/confetti-upload-success.json";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import type { LenisOptions } from "lenis";
 import { ReactLenis, useLenis } from "lenis/react";
@@ -352,9 +348,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
-  const [confettiToken, setConfettiToken] = useState(0);
-  const [confettiVisible, setConfettiVisible] = useState(false);
-  const [confettiKind, setConfettiKind] = useState<ConfettiKind | null>(null);
   const galleryRef = useRef<HTMLElement | null>(null);
   const lastAutoScrollAtRef = useRef(0);
   const activeSource = sources.find((source) => source.id === activeSourceId);
@@ -482,9 +475,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       method: "POST",
     });
 
-    setConfettiVisible(false);
-    setConfettiKind(null);
-    setConfettiToken(0);
     setPageError("");
     setAuthorized(false);
     setImages([]);
@@ -493,12 +483,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setStorageUsage(EMPTY_STORAGE_USAGE);
     setHeroImage(null);
     setSelectedImage(null);
-  }
-
-  function playSuccessConfetti(kind: ConfettiKind) {
-    setConfettiKind(kind);
-    setConfettiVisible(true);
-    setConfettiToken((current) => current + 1);
   }
 
   async function refreshImages(options: { randomizeHero?: boolean } = {}) {
@@ -611,7 +595,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
     try {
       await navigator.clipboard.writeText(absoluteUrl);
-      playSuccessConfetti("copy");
     } catch {
       window.prompt("复制链接", absoluteUrl);
     }
@@ -698,22 +681,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
-      {confettiKind ? (
-        <SuccessConfetti
-          playToken={confettiToken}
-          visible={confettiVisible}
-          animationData={
-            confettiKind === "upload"
-              ? uploadSuccessAnimation
-              : copySuccessAnimation
-          }
-          onComplete={() => {
-            setConfettiVisible(false);
-            setConfettiKind(null);
-          }}
-        />
-      ) : null}
-
       <div className="fixed left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-[24px] border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
         <div className="flex min-w-0 items-center gap-2 sm:contents">
           <StorageSourceSelect
@@ -802,7 +769,6 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
             <div className="mt-14">
               <TransferUploadPanel
                 onUploaded={refreshImages}
-                onUploadSuccess={() => playSuccessConfetti("upload")}
                 sourceId={activeSourceId}
                 uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
               />

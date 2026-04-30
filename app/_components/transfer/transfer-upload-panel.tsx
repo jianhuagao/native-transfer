@@ -16,14 +16,12 @@ import { useEffect, useRef, useState } from "react";
 
 type TransferUploadPanelProps = {
   onUploaded: () => Promise<void>;
-  onUploadSuccess: () => void;
   sourceId: string;
   uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
 };
 
 export function TransferUploadPanel({
   onUploaded,
-  onUploadSuccess,
   sourceId,
   uploadMode,
 }: TransferUploadPanelProps) {
@@ -139,7 +137,6 @@ export function TransferUploadPanel({
       const previewUrl = URL.createObjectURL(file);
       setUploadProgress(100);
       setUploadStatus("传输完成");
-      onUploadSuccess();
       scheduleRecentImage(previewUrl, file.name, mediaType);
       await onUploaded();
     } catch (error) {
@@ -186,7 +183,7 @@ export function TransferUploadPanel({
         disabled={uploading}
         className="group inline-flex max-w-full items-center gap-3 rounded-[28px] border border-white/18 bg-black/30 p-3 pr-5 text-left shadow-[0_20px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-white/36 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        <span className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden  bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
+        <span className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)] text-center leading-none">
           {!recentImageUrl ? (
             <svg
               className="pointer-events-none absolute -inset-1 -rotate-90 overflow-visible"
@@ -250,11 +247,11 @@ export function TransferUploadPanel({
               {/* <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.34))]" /> */}
             </>
           ) : uploading ? (
-            <span className="relative z-10 text-lg font-semibold text-white">
+            <span className="relative z-10 flex size-full items-center justify-center text-lg font-semibold text-white">
               {uploadProgress}%
             </span>
           ) : (
-            <PlusIcon className="relative z-10 size-9 text-white" />
+            <PlusIcon className="relative z-10 block size-9 text-white" />
           )}
         </span>
 

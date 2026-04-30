@@ -39,5 +39,3 @@ export type ImagesPayload = {
 export type TransferAppProps = {
   initialAuthorized: boolean;
 };
-
-export type ConfettiKind = "upload" | "copy";
