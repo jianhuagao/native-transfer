@@ -1,145 +1,107 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { storageSourceDefinitions } from "@/storage-sources.config";
 import type {
   PublicStorageSource,
   StorageAccess,
-  StorageProvider,
   StorageProviderName,
+  StorageProvider,
   StorageSourceConfig,
   StorageUploadMode,
 } from "@/app/_lib/storage-providers/types";
 
-const DEFAULT_STORAGE_PROVIDER = "vercel-blob";
 export const STORAGE_SOURCE_COOKIE_NAME = "native-transfer-storage-source";
 
 const providerPromises = new Map<string, Promise<StorageProvider>>();
 
-function normalizeEnvSegment(value: string) {
-  return value.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-}
+type S3SourceDefinition = Omit<
+  NonNullable<StorageSourceConfig["s3"]>,
+  "accessKeyId" | "secretAccessKey" | "endpoint"
+> & {
+  endpoint?: string;
+  endpointEnv?: string;
+  accessKeyIdEnv: string;
+  secretAccessKeyEnv: string;
+};
 
-function getSourceEnv(sourceId: string, key: string) {
-  const sourceKey = normalizeEnvSegment(sourceId);
+type StorageSourceDefinition = Omit<
+  StorageSourceConfig,
+  "provider" | "access" | "uploadMode" | "token" | "s3"
+> & {
+  provider: StorageProviderName;
+  access: StorageAccess;
+  uploadMode: StorageUploadMode;
+  tokenEnv?: string;
+  s3?: S3SourceDefinition;
+};
 
-  return (
-    process.env[`STORAGE_SOURCE_${sourceKey}_${key}`] ??
-    process.env[`STORAGE_${sourceKey}_${key}`]
-  );
-}
+const configuredStorageSourceDefinitions =
+  storageSourceDefinitions as readonly StorageSourceDefinition[];
 
-function normalizeAccess(value?: string): StorageAccess {
-  const access = value?.trim().toLowerCase();
-
-  if (access === "public" || access === "private") {
-    return access;
+function readOptionalEnv(name?: string) {
+  if (!name) {
+    return undefined;
   }
 
-  return "private";
+  return process.env[name];
 }
 
-function normalizeProvider(value?: string): StorageProviderName {
-  const provider = (value ?? DEFAULT_STORAGE_PROVIDER).trim().toLowerCase();
+function requireEnv(name: string, sourceId: string) {
+  const value = readOptionalEnv(name);
 
-  if (provider === "local" || provider === "s3" || provider === "vercel-blob") {
-    return provider;
-  }
-
-  throw new Error(`Unsupported storage provider: ${provider}`);
-}
-
-function normalizeUploadMode(
-  provider: StorageProviderName,
-  value?: string,
-): StorageUploadMode {
-  const uploadMode = value?.trim().toLowerCase();
-
-  if (uploadMode === "form-data" || uploadMode === "vercel-blob-client") {
-    return uploadMode;
-  }
-
-  return provider === "vercel-blob" ? "vercel-blob-client" : "form-data";
-}
-
-function normalizeBoolean(value: string | undefined, fallback: boolean) {
   if (!value) {
-    return fallback;
+    throw new Error(`Missing environment variable ${name} for ${sourceId}.`);
   }
 
-  return ["1", "true", "yes"].includes(value.trim().toLowerCase());
+  return value;
 }
 
-function getConfiguredSourceIds() {
-  return (process.env.STORAGE_SOURCES ?? "")
-    .split(",")
-    .map((sourceId) => sourceId.trim())
-    .filter(Boolean);
+function requireConfigValue(
+  value: string | undefined,
+  envName: string | undefined,
+  fieldName: string,
+  sourceId: string,
+) {
+  if (envName) {
+    return requireEnv(envName, sourceId);
+  }
+
+  if (!value) {
+    throw new Error(`Missing ${fieldName} for ${sourceId}.`);
+  }
+
+  return value;
 }
 
-function buildLegacySource(): StorageSourceConfig {
-  const provider = normalizeProvider(process.env.STORAGE_PROVIDER);
+function buildStorageSource(
+  definition: StorageSourceDefinition,
+): StorageSourceConfig {
+  const { tokenEnv, s3, ...source } = definition;
 
   return {
-    id: "default",
-    label: process.env.STORAGE_LABEL?.trim() || "Default",
-    provider,
-    access: normalizeAccess(process.env.STORAGE_ACCESS ?? process.env.BLOB_ACCESS),
-    prefix: process.env.STORAGE_PREFIX?.trim() || "uploads/",
-    totalCapacity: process.env.STORAGE_TOTAL_CAPACITY,
-    uploadMode: normalizeUploadMode(
-      provider,
-      process.env.NEXT_PUBLIC_STORAGE_UPLOAD_MODE,
-    ),
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-    s3:
-      provider === "s3"
-        ? {
-            bucket: process.env.S3_BUCKET ?? "",
-            endpoint: process.env.S3_ENDPOINT ?? "",
-            region: process.env.S3_REGION ?? "auto",
-            accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "",
-            secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "",
-            forcePathStyle: normalizeBoolean(process.env.S3_FORCE_PATH_STYLE, true),
-          }
-        : undefined,
-  };
-}
-
-function buildConfiguredSource(sourceId: string): StorageSourceConfig {
-  const provider = normalizeProvider(getSourceEnv(sourceId, "PROVIDER"));
-
-  return {
-    id: sourceId,
-    label: getSourceEnv(sourceId, "LABEL")?.trim() || sourceId,
-    provider,
-    access: normalizeAccess(getSourceEnv(sourceId, "ACCESS")),
-    prefix: getSourceEnv(sourceId, "PREFIX")?.trim() || "uploads/",
-    totalCapacity: getSourceEnv(sourceId, "TOTAL_CAPACITY"),
-    uploadMode: normalizeUploadMode(provider, getSourceEnv(sourceId, "UPLOAD_MODE")),
-    token: getSourceEnv(sourceId, "BLOB_READ_WRITE_TOKEN"),
-    s3:
-      provider === "s3"
-        ? {
-            bucket: getSourceEnv(sourceId, "S3_BUCKET") ?? "",
-            endpoint: getSourceEnv(sourceId, "S3_ENDPOINT") ?? "",
-            region: getSourceEnv(sourceId, "S3_REGION") ?? "auto",
-            accessKeyId: getSourceEnv(sourceId, "S3_ACCESS_KEY_ID") ?? "",
-            secretAccessKey: getSourceEnv(sourceId, "S3_SECRET_ACCESS_KEY") ?? "",
-            forcePathStyle: normalizeBoolean(
-              getSourceEnv(sourceId, "S3_FORCE_PATH_STYLE"),
-              true,
-            ),
-          }
-        : undefined,
+    ...source,
+    token: tokenEnv ? requireEnv(tokenEnv, definition.id) : undefined,
+    s3: s3
+      ? {
+          bucket: s3.bucket,
+          endpoint: requireConfigValue(
+            s3.endpoint,
+            s3.endpointEnv,
+            "S3 endpoint",
+            definition.id,
+          ),
+          region: s3.region,
+          forcePathStyle: s3.forcePathStyle,
+          accessKeyId: requireEnv(s3.accessKeyIdEnv, definition.id),
+          secretAccessKey: requireEnv(s3.secretAccessKeyEnv, definition.id),
+        }
+      : undefined,
   };
 }
 
 export function getStorageSources(): StorageSourceConfig[] {
-  const sourceIds = getConfiguredSourceIds();
-  const sources =
-    sourceIds.length > 0
-      ? sourceIds.map(buildConfiguredSource)
-      : [buildLegacySource()];
+  const sources = configuredStorageSourceDefinitions.map(buildStorageSource);
 
   if (sources.length === 0) {
     throw new Error("No storage sources configured.");

@@ -71,8 +71,13 @@ export async function GET(
       status: statusCode,
       headers,
     });
-  } catch {
-    return NextResponse.json({ error: "媒体不存在" }, { status: 404 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Blob not found") {
+      return NextResponse.json({ error: "媒体不存在" }, { status: 404 });
+    }
+
+    console.error("Failed to read media", error);
+    return NextResponse.json({ error: "读取媒体失败" }, { status: 500 });
   }
 }
 

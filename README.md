@@ -24,60 +24,59 @@
 - Tailwind CSS 4
 - 存储中间层，支持 Vercel Blob / Local / S3 兼容存储
 
+## 存储配置
+
+存储源的非敏感配置写在根目录的 [`storage-sources.config.ts`](./storage-sources.config.ts)。这里维护 source id、展示名称、provider、上传模式、访问级别、路径前缀、容量、bucket、endpoint 等信息。
+
+当前默认配置包含：
+
+- `cloudflare_1`：Cloudflare R2，S3 兼容存储
+- `vercel_blob1`：Vercel Blob
+- `vercel_blob2`：Vercel Blob
+
+如果要新增、删除或调整存储源，优先修改 `storageSourceDefinitions`：
+
+```ts
+{
+  id: "vercel_blob1",
+  label: "Vercel Blob 1",
+  provider: "vercel-blob",
+  uploadMode: "vercel-blob-client",
+  access: "private",
+  prefix: "uploads/",
+  totalCapacity: "1GB",
+  tokenEnv: "VERCEL_BLOB1_TOKEN",
+}
+```
+
+`tokenEnv`、`accessKeyIdEnv`、`secretAccessKeyEnv` 只保存环境变量名，实际密钥仍然只放在 `.env` 或部署平台的环境变量里。
+
 ## 环境变量
 
-在项目根目录创建 `.env`：
+在项目根目录创建 `.env`，只放登录密码和存储凭证：
 
 ```env
 TRANSFER_PASSWORD=change-this-password
-STORAGE_PROVIDER=vercel-blob
-NEXT_PUBLIC_STORAGE_UPLOAD_MODE=vercel-blob-client
-STORAGE_ACCESS=private
-STORAGE_PREFIX=uploads/
-BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx
+
+CF_R2_KEY_ID=your-r2-access-key-id
+CF_R2_SECRET_KEY=your-r2-secret-access-key
+CF_R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
+
+VERCEL_BLOB1_TOKEN=vercel_blob_rw_xxx
+VERCEL_BLOB2_TOKEN=vercel_blob_rw_xxx
 ```
 
 说明：
 
 - `TRANSFER_PASSWORD`：登录页面使用的访问密码
-- `STORAGE_PROVIDER`：单源模式的存储提供方，当前内置 `vercel-blob`、`local` 和 `s3`
-- `NEXT_PUBLIC_STORAGE_UPLOAD_MODE`：单源模式的上传模式。Vercel Blob 使用 `vercel-blob-client`，S3/Local 使用 `form-data`
-- `STORAGE_ACCESS`：可选，支持 `private` 或 `public`，默认是 `private`
-- `STORAGE_PREFIX`：可选，存储路径前缀，默认是 `uploads/`
-- `BLOB_READ_WRITE_TOKEN`：Vercel Blob 读写令牌
+- `CF_R2_KEY_ID`：Cloudflare R2 Access Key ID
+- `CF_R2_SECRET_KEY`：Cloudflare R2 Secret Access Key
+- `CF_R2_ENDPOINT`：Cloudflare R2 S3 API endpoint
+- `VERCEL_BLOB1_TOKEN` / `VERCEL_BLOB2_TOKEN`：对应 Vercel Blob Store 的读写令牌
 
 推荐默认使用 `private`。当前实现里，图片列表和原图访问都要求登录态；应用内部预览图通过带 token 的接口地址加载。
 
-## 多存储源
-
-配置 `STORAGE_SOURCES` 后，系统右上角会出现存储源切换菜单。每个 source 都有自己的 provider、前缀、容量和凭证；切换后图片列表、上传、预览、下载和删除都会指向当前 source。
-
-```env
-STORAGE_SOURCES=vercel_blob1,cloudflare_1
-
-STORAGE_SOURCE_VERCEL_BLOB1_LABEL=Vercel Blob 1
-STORAGE_SOURCE_VERCEL_BLOB1_PROVIDER=vercel-blob
-STORAGE_SOURCE_VERCEL_BLOB1_UPLOAD_MODE=vercel-blob-client
-STORAGE_SOURCE_VERCEL_BLOB1_ACCESS=private
-STORAGE_SOURCE_VERCEL_BLOB1_PREFIX=uploads/
-STORAGE_SOURCE_VERCEL_BLOB1_TOTAL_CAPACITY=1GB
-STORAGE_SOURCE_VERCEL_BLOB1_BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxx
-
-STORAGE_SOURCE_CLOUDFLARE_1_LABEL=Cloudflare 1
-STORAGE_SOURCE_CLOUDFLARE_1_PROVIDER=s3
-STORAGE_SOURCE_CLOUDFLARE_1_UPLOAD_MODE=form-data
-STORAGE_SOURCE_CLOUDFLARE_1_ACCESS=private
-STORAGE_SOURCE_CLOUDFLARE_1_PREFIX=uploads/
-STORAGE_SOURCE_CLOUDFLARE_1_TOTAL_CAPACITY=10GB
-STORAGE_SOURCE_CLOUDFLARE_1_S3_BUCKET=your-r2-bucket
-STORAGE_SOURCE_CLOUDFLARE_1_S3_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
-STORAGE_SOURCE_CLOUDFLARE_1_S3_REGION=auto
-STORAGE_SOURCE_CLOUDFLARE_1_S3_ACCESS_KEY_ID=your-r2-access-key-id
-STORAGE_SOURCE_CLOUDFLARE_1_S3_SECRET_ACCESS_KEY=your-r2-secret-access-key
-STORAGE_SOURCE_CLOUDFLARE_1_S3_FORCE_PATH_STYLE=true
-```
-
-source id 会被转换成大写环境变量片段，例如 `cloudflare_1` 对应 `STORAGE_SOURCE_CLOUDFLARE_1_*`。同一个服务商要配置多个实例时，只需要在 `STORAGE_SOURCES` 里放多个不同 id，并分别填写对应变量。
+系统右上角会根据 `storageSourceDefinitions` 出现存储源切换菜单。切换后图片列表、上传、预览、下载和删除都会指向当前 source。
 
 ## 本地开发
 
@@ -102,34 +101,16 @@ pnpm typecheck
 
 推荐部署到 Vercel：
 
-1. 创建一个 Blob Store，并拿到 `BLOB_READ_WRITE_TOKEN`
-2. 在项目环境变量中配置 `TRANSFER_PASSWORD`、`STORAGE_PROVIDER=vercel-blob`、`BLOB_READ_WRITE_TOKEN`
-3. 如有需要，额外设置 `STORAGE_ACCESS=private`
+1. 按需创建 Vercel Blob Store 或 Cloudflare R2 bucket
+2. 在 [`storage-sources.config.ts`](./storage-sources.config.ts) 配置非敏感的存储源信息
+3. 在部署平台环境变量中配置 `TRANSFER_PASSWORD` 和各存储源需要的 token/access key
 4. 部署项目
 
 上传接口目前允许 `image/*` 与 `video/*`，单文件大小上限为 `200MB`。
 
-如果要切到本地磁盘存储，可以使用：
+如果要切到本地磁盘存储，在 `storageSourceDefinitions` 里添加 `provider: "local"`、`uploadMode: "form-data"` 的 source。`local` provider 会把文件写入项目根目录的 `storage/<source-id>` 文件夹。
 
-```env
-STORAGE_PROVIDER=local
-NEXT_PUBLIC_STORAGE_UPLOAD_MODE=form-data
-```
-
-`local` provider 会把文件写入项目根目录的 `storage` 文件夹。
-
-如果要接 Cloudflare R2，使用 `s3` provider，并把 endpoint 设置为 R2 的 S3 API 地址：
-
-```env
-STORAGE_PROVIDER=s3
-NEXT_PUBLIC_STORAGE_UPLOAD_MODE=form-data
-S3_BUCKET=your-r2-bucket
-S3_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
-S3_REGION=auto
-S3_ACCESS_KEY_ID=your-r2-access-key-id
-S3_SECRET_ACCESS_KEY=your-r2-secret-access-key
-S3_FORCE_PATH_STYLE=true
-```
+如果要接 Cloudflare R2，在 `storageSourceDefinitions` 里添加 `provider: "s3"` 的 source，并把 `endpoint` 设置为 R2 的 S3 API 地址；`accessKeyIdEnv` 和 `secretAccessKeyEnv` 指向实际凭证所在的环境变量名。
 
 ## 目录结构
 
