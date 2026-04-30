@@ -51,3 +51,8 @@ img {
   background: rgba(152, 218, 255, 0.32);
   color: white;
 }
+
+/* 默认 font-size，用于 SSR 初始渲染 */
+html {
+  font-size: 16px;
+}
