@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { isAuthorized } from "@/app/_lib/auth";
-import { handleUploadRequest, saveUpload } from "@/app/_lib/storage";
+import {
+  createDirectUpload,
+  handleUploadRequest,
+  saveUpload,
+} from "@/app/_lib/storage";
 
 export const runtime = "nodejs";
 
@@ -60,6 +64,45 @@ export async function POST(request: Request): Promise<NextResponse> {
       request.headers.get("x-storage-source") ??
       new URL(request.url).searchParams.get("source") ??
       getSourceIdFromUploadBody(body);
+
+    if (
+      body &&
+      typeof body === "object" &&
+      "type" in body &&
+      body.type === "storage.create-direct-upload"
+    ) {
+      const payload = (body as {
+        payload?: {
+          pathname?: unknown;
+          contentType?: unknown;
+          size?: unknown;
+        };
+      }).payload;
+
+      if (
+        !payload ||
+        typeof payload.pathname !== "string" ||
+        typeof payload.size !== "number"
+      ) {
+        throw new Error("上传参数无效");
+      }
+
+      return NextResponse.json(
+        await createDirectUpload(
+          {
+            pathname: payload.pathname,
+            contentType:
+              typeof payload.contentType === "string"
+                ? payload.contentType
+                : undefined,
+            size: payload.size,
+          },
+          isAuthorized,
+          sourceId,
+        ),
+      );
+    }
+
     const jsonResponse = await handleUploadRequest(
       request,
       body,

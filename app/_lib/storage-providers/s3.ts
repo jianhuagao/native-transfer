@@ -4,9 +4,11 @@ import {
   type ListObjectsV2CommandOutput,
   ListObjectsV2Command,
   NoSuchKey,
+  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "node:stream";
 
 import type {
@@ -166,6 +168,27 @@ export function createS3StorageProvider(
           Key: pathname,
         }),
       );
+    },
+
+    async createDirectUpload(options) {
+      const command = new PutObjectCommand({
+        Bucket: s3Config.bucket,
+        Key: options.pathname,
+        ContentLength: options.size,
+        ContentType: options.contentType,
+      });
+      const headers: Record<string, string> = {};
+
+      if (options.contentType) {
+        headers["Content-Type"] = options.contentType;
+      }
+
+      return {
+        method: "PUT",
+        pathname: options.pathname,
+        url: await getSignedUrl(getClient(), command, { expiresIn: 60 * 10 }),
+        headers,
+      };
     },
   };
 }

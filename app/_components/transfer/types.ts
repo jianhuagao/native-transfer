@@ -26,7 +26,7 @@ export type StorageSource = {
   id: string;
   label: string;
   provider: "local" | "s3" | "vercel-blob";
-  uploadMode: "form-data" | "vercel-blob-client";
+  uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
 };
 
 export type ImagesPayload = {

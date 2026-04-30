@@ -6,8 +6,8 @@ export const storageSourceDefinitions = [
     label: "Cloudflare 1",
     // 存储提供方。Cloudflare R2 使用 S3 兼容协议，所以这里填 s3。
     provider: "s3",
-    // 上传模式。S3 兼容存储使用服务端表单上传。
-    uploadMode: "form-data",
+    // 上传模式。S3 兼容存储使用预签名 URL，让浏览器直传到存储桶。
+    uploadMode: "s3-presigned-url",
     // 文件访问级别。private 会要求通过应用鉴权后访问原文件。
     access: "private",
     // 文件保存路径前缀。

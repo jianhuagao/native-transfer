@@ -1,6 +1,9 @@
 export type StorageAccess = "public" | "private";
 export type StorageProviderName = "local" | "s3" | "vercel-blob";
-export type StorageUploadMode = "form-data" | "vercel-blob-client";
+export type StorageUploadMode =
+  | "form-data"
+  | "s3-presigned-url"
+  | "vercel-blob-client";
 
 export type StorageSourceConfig = {
   id: string;
@@ -72,6 +75,19 @@ export type StorageClientUploadOptions = {
   getUploadConstraints: () => Promise<StorageUploadConstraints>;
 };
 
+export type StorageDirectUploadOptions = {
+  pathname: string;
+  contentType?: string;
+  size: number;
+};
+
+export type StorageDirectUploadResult = {
+  method: "PUT";
+  pathname: string;
+  url: string;
+  headers?: Record<string, string>;
+};
+
 export type StorageProvider = {
   put(
     pathname: string,
@@ -85,4 +101,7 @@ export type StorageProvider = {
   ): Promise<StorageReadResult | null>;
   delete(pathname: string): Promise<void>;
   handleClientUpload?(options: StorageClientUploadOptions): Promise<unknown>;
+  createDirectUpload?(
+    options: StorageDirectUploadOptions,
+  ): Promise<StorageDirectUploadResult>;
 };

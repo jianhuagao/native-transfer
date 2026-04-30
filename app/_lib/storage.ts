@@ -312,6 +312,41 @@ export async function handleUploadRequest(
   });
 }
 
+export async function createDirectUpload(
+  options: {
+    pathname: string;
+    contentType?: string;
+    size: number;
+  },
+  authorize: () => Promise<boolean>,
+  sourceId?: string | null,
+) {
+  if (!(await authorize())) {
+    throw new Error("未授权");
+  }
+
+  if (options.size > MAX_UPLOAD_SIZE_IN_BYTES) {
+    throw new Error("单文件大小不能超过 200MB");
+  }
+
+  if (
+    options.contentType &&
+    !options.contentType.startsWith("image/") &&
+    !options.contentType.startsWith("video/")
+  ) {
+    throw new Error("仅支持上传图片或视频文件");
+  }
+
+  const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const storageProvider = await getStorageProvider(activeSourceId);
+
+  if (!storageProvider.createDirectUpload) {
+    throw new Error("当前存储提供方不支持直传。");
+  }
+
+  return storageProvider.createDirectUpload(options);
+}
+
 export async function getImagesPayload(
   sourceId?: string | null,
 ): Promise<StorageImagesPayload> {

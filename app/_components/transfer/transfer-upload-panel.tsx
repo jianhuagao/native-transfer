@@ -18,7 +18,7 @@ type TransferUploadPanelProps = {
   onUploaded: () => Promise<void>;
   onUploadSuccess: () => void;
   sourceId: string;
-  uploadMode: "form-data" | "vercel-blob-client";
+  uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
 };
 
 export function TransferUploadPanel({

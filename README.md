@@ -110,7 +110,21 @@ pnpm typecheck
 
 如果要切到本地磁盘存储，在 `storageSourceDefinitions` 里添加 `provider: "local"`、`uploadMode: "form-data"` 的 source。`local` provider 会把文件写入项目根目录的 `storage/<source-id>` 文件夹。
 
-如果要接 Cloudflare R2，在 `storageSourceDefinitions` 里添加 `provider: "s3"` 的 source，并把 `endpoint` 设置为 R2 的 S3 API 地址；`accessKeyIdEnv` 和 `secretAccessKeyEnv` 指向实际凭证所在的环境变量名。
+如果要接 Cloudflare R2，在 `storageSourceDefinitions` 里添加 `provider: "s3"`、`uploadMode: "s3-presigned-url"` 的 source。`endpointEnv`、`accessKeyIdEnv` 和 `secretAccessKeyEnv` 指向实际配置所在的环境变量名。
+
+Cloudflare R2 使用预签名 URL 直传，图片二进制不会经过 Vercel Function。R2 bucket 需要允许浏览器跨域 `PUT`，例如：
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://your-domain.com", "http://localhost:3000"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
 
 ## 目录结构
 
