@@ -183,7 +183,7 @@ export function TransferUploadPanel({
         disabled={uploading}
         className="group inline-flex max-w-full items-center gap-3 rounded-[28px] border border-white/18 bg-black/30 p-3 pr-5 text-left shadow-[0_20px_70px_rgba(0,0,0,0.34)] transition hover:border-white/36 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        <span className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
+        <span className="relative block size-20 shrink-0 overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
           {!recentImageUrl ? (
             <svg
               className="pointer-events-none absolute -inset-1 -rotate-90 overflow-visible"
@@ -244,11 +244,13 @@ export function TransferUploadPanel({
               {/* <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.34))]" /> */}
             </>
           ) : uploading ? (
-            <span className="absolute inset-0 z-10 flex items-center justify-center text-center text-lg font-semibold leading-none text-white">
+            <span className="absolute inset-0 z-10 grid place-items-center text-center text-lg font-semibold leading-none text-white">
               {uploadProgress}%
             </span>
           ) : (
-            <PlusIcon className="absolute inset-0 z-10 m-auto size-8 text-white" />
+            <span className="absolute inset-0 z-10 grid place-items-center">
+              <PlusIcon className="block size-8 text-white" />
+            </span>
           )}
         </span>
 
