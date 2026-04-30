@@ -1,6 +1,5 @@
 "use client";
 
-import { PlusIcon } from "@heroicons/react/24/solid";
 import {
   getMediaKind,
   MEDIA_INPUT_ACCEPT,
@@ -183,7 +182,7 @@ export function TransferUploadPanel({
         disabled={uploading}
         className="group inline-flex max-w-full items-center gap-3 rounded-[28px] border border-white/18 bg-black/30 p-3 pr-5 text-left shadow-[0_20px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-white/36 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        <span className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)] text-center leading-none">
+        <span className="relative size-20 shrink-0 overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
           {!recentImageUrl ? (
             <svg
               className="pointer-events-none absolute -inset-1 -rotate-90 overflow-visible"
@@ -247,11 +246,14 @@ export function TransferUploadPanel({
               {/* <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.03),rgba(0,0,0,0.34))]" /> */}
             </>
           ) : uploading ? (
-            <span className="relative z-10 flex size-full items-center justify-center text-lg font-semibold text-white">
+            <span className="absolute inset-0 z-10 flex items-center justify-center text-center text-lg font-semibold leading-none text-white">
               {uploadProgress}%
             </span>
           ) : (
-            <PlusIcon className="relative z-10 block size-9 text-white" />
+            <span aria-hidden="true" className="absolute inset-0 z-10">
+              <span className="absolute left-1/2 top-1/2 h-7 w-0.75 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+              <span className="absolute left-1/2 top-1/2 h-0.75 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+            </span>
           )}
         </span>
 
