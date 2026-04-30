@@ -217,7 +217,7 @@ export function TransferUploadPanel({
                 <path
                   d="M40 27V53M27 40H53"
                   stroke="white"
-                  strokeWidth="5"
+                  strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
