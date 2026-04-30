@@ -594,11 +594,13 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   }
 
   function handleDownload(image: StoredImage) {
-    const targetUrl = isTouchLikeDevice()
-      ? image.originalUrl
-      : `${image.originalUrl}?download=1`;
+    const targetUrl = new URL(image.originalUrl, window.location.origin);
 
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
+    if (!isTouchLikeDevice()) {
+      targetUrl.searchParams.set("download", "1");
+    }
+
+    window.open(targetUrl.toString(), "_blank", "noopener,noreferrer");
   }
 
   async function handleCopyLink(image: StoredImage) {
