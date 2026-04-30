@@ -1,6 +1,5 @@
 "use client";
 
-import { PlusIcon } from "@heroicons/react/24/solid";
 import {
   getMediaKind,
   MEDIA_INPUT_ACCEPT,
@@ -186,31 +185,43 @@ export function TransferUploadPanel({
         <span className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
           {!recentImageUrl ? (
             <svg
-              className="pointer-events-none absolute -inset-1 -rotate-90 overflow-visible"
+              className="pointer-events-none absolute inset-0 size-full"
               viewBox="0 0 80 80"
               fill="none"
+              aria-hidden="true"
             >
-              <circle
-                cx="40"
-                cy="40"
-                r={uploadRadius}
-                stroke="rgba(255,255,255,0.14)"
-                strokeWidth={uploadStrokeWidth}
-              />
-              <circle
-                cx="40"
-                cy="40"
-                r={uploadRadius}
-                stroke="url(#upload-progress-gradient)"
-                strokeWidth={uploadStrokeWidth}
-                strokeLinecap="round"
-                strokeDasharray={uploadCircumference}
-                strokeDashoffset={uploadOffset}
-                className="transition-all duration-300"
-                style={{
-                  filter: "drop-shadow(0 0 10px rgba(255, 255, 255, 0.22))",
-                }}
-              />
+              <g transform="rotate(-90 40 40)">
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={uploadRadius}
+                  stroke="rgba(255,255,255,0.14)"
+                  strokeWidth={uploadStrokeWidth}
+                />
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={uploadRadius}
+                  stroke="url(#upload-progress-gradient)"
+                  strokeWidth={uploadStrokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={uploadCircumference}
+                  strokeDashoffset={uploadOffset}
+                  className="transition-all duration-300"
+                  style={{
+                    filter: "drop-shadow(0 0 10px rgba(255, 255, 255, 0.22))",
+                  }}
+                />
+              </g>
+              {!uploading ? (
+                <path
+                  d="M40 27V53M27 40H53"
+                  stroke="white"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ) : null}
               <defs>
                 <linearGradient
                   id="upload-progress-gradient"
@@ -250,9 +261,7 @@ export function TransferUploadPanel({
             <span className="relative z-10 text-lg font-semibold text-white">
               {uploadProgress}%
             </span>
-          ) : (
-            <PlusIcon className="relative z-10 size-9 text-white" />
-          )}
+          ) : null}
         </span>
 
         <span className="min-w-0">
