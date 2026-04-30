@@ -92,7 +92,10 @@ function writeCachedHeroImage(sourceId: string, image: StoredImage | null) {
 
   try {
     if (image) {
-      window.localStorage.setItem(getHeroCacheKey(sourceId), JSON.stringify(image));
+      window.localStorage.setItem(
+        getHeroCacheKey(sourceId),
+        JSON.stringify(image),
+      );
       return;
     }
 
@@ -790,7 +793,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)]" />
 
         <div className="relative z-20 flex w-full flex-col px-5 pb-52 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
-          <div className="max-w-xl pt-[8vh] sm:pt-[10vh]">
+          <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
             <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
               Native Transfer
             </h1>

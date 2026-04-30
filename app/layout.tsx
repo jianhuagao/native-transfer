@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import "lenis/dist/lenis.css";
 import "./globals.css";
+import ViewportResize from "./_components/ViewportResize";
 
 const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"] });
 
@@ -25,7 +26,10 @@ export default function RootLayout({
       lang="en"
       className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ViewportResize />
+        {children}
+      </body>
     </html>
   );
 }
