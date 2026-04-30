@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import "lenis/dist/lenis.css";
 import "./globals.css";
@@ -13,13 +13,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Native Transfer",
   description: "Personal image transfer site",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  viewportFit: "cover",
 };
 
 export default function RootLayout({
