@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { isAuthorized } from "@/app/_lib/auth";
 import { getImagesPayload } from "@/app/_lib/storage";
@@ -9,10 +9,18 @@ function unauthorized() {
   return NextResponse.json({ error: "未授权" }, { status: 401 });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   if (!(await isAuthorized())) {
     return unauthorized();
   }
 
-  return NextResponse.json(await getImagesPayload());
+  const limit = Number(request.nextUrl.searchParams.get("limit"));
+  const cursor = request.nextUrl.searchParams.get("cursor");
+
+  return NextResponse.json(
+    await getImagesPayload(null, {
+      cursor,
+      limit,
+    }),
+  );
 }

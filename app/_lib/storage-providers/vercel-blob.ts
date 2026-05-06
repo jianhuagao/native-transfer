@@ -84,7 +84,7 @@ export function createVercelBlobStorageProvider(
         token: source.token,
         body: body as HandleUploadBody,
         request,
-        onBeforeGenerateToken: getUploadConstraints,
+        onBeforeGenerateToken: (pathname) => getUploadConstraints(pathname),
         onUploadCompleted: async () => {
           return;
         },

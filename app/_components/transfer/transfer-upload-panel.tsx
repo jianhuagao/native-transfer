@@ -8,20 +8,24 @@ import {
 import { uploadMedia } from "@/app/_lib/client-upload";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
+  buildThumbnailPath,
   buildUploadPath,
   isTouchLikeDevice,
 } from "@/app/_components/transfer/utils";
+import { createImageThumbnail } from "@/app/_lib/client-thumbnail";
 import { useEffect, useRef, useState } from "react";
 
 type TransferUploadPanelProps = {
   onUploaded: () => Promise<void>;
   sourceId: string;
+  sourcePrefix: string;
   uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
 };
 
 export function TransferUploadPanel({
   onUploaded,
   sourceId,
+  sourcePrefix,
   uploadMode,
 }: TransferUploadPanelProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -124,14 +128,37 @@ export function TransferUploadPanel({
 
     try {
       const mediaType = getMediaKind(file.type, file.name);
+      const pathname = buildUploadPath(file.name, file.type, sourcePrefix);
 
       await uploadMedia({
         file,
         sourceId,
         uploadMode,
-        pathname: buildUploadPath(file.name, file.type),
+        pathname,
         onProgress: setUploadProgress,
       });
+
+      if (mediaType === "image") {
+        try {
+          setUploadStatus("生成缩略图");
+          const thumbnail = await createImageThumbnail(file);
+
+          if (thumbnail) {
+            await uploadMedia({
+              file: thumbnail,
+              sourceId,
+              uploadMode,
+              pathname: buildThumbnailPath(pathname, sourcePrefix),
+              onProgress: () => {
+                return;
+              },
+            });
+          }
+        } catch {
+          // The original file is already stored; missing thumbnails fall back to
+          // the protected original preview route.
+        }
+      }
 
       const previewUrl = URL.createObjectURL(file);
       setUploadProgress(100);

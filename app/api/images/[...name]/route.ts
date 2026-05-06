@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isAuthorized } from "@/app/_lib/auth";
 import {
-  getImagesPayload,
   readImage,
   removeImage,
   verifySourcePreviewToken,
@@ -95,6 +94,5 @@ export async function DELETE(
 
   return NextResponse.json({
     ok: true,
-    ...(await getImagesPayload(sourceId)),
   });
 }

@@ -38,6 +38,7 @@ async function handleFormDataUpload(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
   const sourceId = formData.get("sourceId");
+  const requestedPathname = formData.get("pathname");
 
   if (!(file instanceof File)) {
     throw new Error("未找到上传文件");
@@ -46,6 +47,7 @@ async function handleFormDataUpload(request: Request) {
   const pathname = await saveUpload(
     file,
     typeof sourceId === "string" ? sourceId : null,
+    typeof requestedPathname === "string" ? requestedPathname : null,
   );
 
   return { pathname };

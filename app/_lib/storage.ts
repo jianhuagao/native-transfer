@@ -25,6 +25,7 @@ export type StoredImage = {
   name: string;
   mediaType: MediaKind;
   mimeType: string;
+  thumbnailUrl?: string;
   url: string;
   originalUrl: string;
   uploadedAt: string;
@@ -41,6 +42,11 @@ export type StorageUsage = {
 export type StorageImagesPayload = {
   activeSourceId: string;
   images: StoredImage[];
+  pagination: {
+    hasMore: boolean;
+    nextCursor: string | null;
+    pageSize: number;
+  };
   sources: PublicStorageSource[];
   storageUsage: StorageUsage;
 };
@@ -85,6 +91,15 @@ function sanitizeBaseName(name: string) {
 }
 
 const MAX_UPLOAD_SIZE_IN_BYTES = 1024 * 1024 * 200;
+const DEFAULT_IMAGES_PAGE_SIZE = 60;
+const MAX_IMAGES_PAGE_SIZE = 120;
+const MAX_STORAGE_LIST_LIMIT = 1000;
+const THUMBNAIL_DIRECTORY = "~thumbs";
+
+type ImagesPayloadOptions = {
+  cursor?: string | null;
+  limit?: number | null;
+};
 
 function getStorageAccess(sourceId?: string | null): StorageAccess {
   return getStorageSource(sourceId).access;
@@ -177,7 +192,71 @@ function assertUploadFileAllowed(file: File) {
   }
 }
 
-export async function saveUpload(file: File, sourceId?: string | null) {
+function normalizeStoragePathname(pathname: string) {
+  return pathname.replaceAll("\\", "/").replace(/^\/+/, "");
+}
+
+function assertPathnameAllowed(pathname: string, sourcePrefix: string) {
+  const normalized = normalizeStoragePathname(pathname);
+
+  if (
+    !normalized ||
+    normalized.includes("\0") ||
+    normalized.split("/").includes("..") ||
+    !normalized.startsWith(sourcePrefix)
+  ) {
+    throw new Error("上传路径无效");
+  }
+
+  return normalized;
+}
+
+function getAllowedContentTypesForPathname(
+  sourcePrefix: string,
+  pathname: string,
+) {
+  return isThumbnailPathname(sourcePrefix, pathname)
+    ? ["image/*"]
+    : ALLOWED_UPLOAD_CONTENT_TYPES;
+}
+
+function getThumbnailPathname(sourcePrefix: string, pathname: string) {
+  const normalized = normalizeStoragePathname(pathname);
+  const relativePath = normalized.startsWith(sourcePrefix)
+    ? normalized.slice(sourcePrefix.length)
+    : normalized;
+  const directory = path.posix.dirname(relativePath);
+  const extension = path.posix.extname(relativePath);
+  const baseName = path.posix.basename(relativePath, extension) || "media";
+  const thumbnailRelativePath =
+    directory === "." ? `${baseName}.jpg` : `${directory}/${baseName}.jpg`;
+
+  return `${sourcePrefix}${THUMBNAIL_DIRECTORY}/${thumbnailRelativePath}`;
+}
+
+function isThumbnailPathname(sourcePrefix: string, pathname: string) {
+  return normalizeStoragePathname(pathname).startsWith(
+    `${sourcePrefix}${THUMBNAIL_DIRECTORY}/`,
+  );
+}
+
+function normalizePageSize(limit?: number | null) {
+  if (!limit || !Number.isFinite(limit)) {
+    return DEFAULT_IMAGES_PAGE_SIZE;
+  }
+
+  return Math.min(MAX_IMAGES_PAGE_SIZE, Math.max(1, Math.floor(limit)));
+}
+
+function getNextCursor(images: StoredImage[], pageSize: number) {
+  return images.length > pageSize ? images[pageSize - 1]?.id ?? null : null;
+}
+
+export async function saveUpload(
+  file: File,
+  sourceId?: string | null,
+  requestedPathname?: string | null,
+) {
   assertUploadFileAllowed(file);
 
   const activeSourceId = await getActiveStorageSourceId(sourceId);
@@ -188,8 +267,17 @@ export async function saveUpload(file: File, sourceId?: string | null) {
     path.extname(originalName).toLowerCase() || getDefaultExtension(file.type);
   const baseName =
     sanitizeBaseName(path.basename(originalName, extension)) || "media";
-  const pathname = `${source.prefix}${formatStamp(now)}-${baseName}${extension}`;
+  const pathname = requestedPathname
+    ? assertPathnameAllowed(requestedPathname, source.prefix)
+    : `${source.prefix}${formatStamp(now)}-${baseName}${extension}`;
   const storageProvider = await getStorageProvider(source.id);
+
+  if (
+    isThumbnailPathname(source.prefix, pathname) &&
+    !file.type.startsWith("image/")
+  ) {
+    throw new Error("缩略图路径仅支持图片文件");
+  }
 
   const storedObject = await storageProvider.put(pathname, file, {
     access: getStorageAccess(source.id),
@@ -200,20 +288,44 @@ export async function saveUpload(file: File, sourceId?: string | null) {
   return storedObject.pathname;
 }
 
-export async function listImages(sourceId?: string | null): Promise<StoredImage[]> {
+export async function listImages(
+  sourceId?: string | null,
+): Promise<StoredImage[]> {
   const activeSourceId = await getActiveStorageSourceId(sourceId);
   const source = getStorageSource(activeSourceId);
   const storageProvider = await getStorageProvider(source.id);
-  const objects = await storageProvider.list({
-    prefix: source.prefix,
-    limit: 1000,
-  });
+  const [objects, thumbnailObjects] = await Promise.all([
+    storageProvider.list({
+      prefix: source.prefix,
+      limit: MAX_STORAGE_LIST_LIMIT,
+    }),
+    storageProvider.list({
+      prefix: `${source.prefix}${THUMBNAIL_DIRECTORY}/`,
+      limit: MAX_STORAGE_LIST_LIMIT,
+    }),
+  ]);
+  const thumbnailPathnames = new Set(
+    thumbnailObjects.map((object) => normalizeStoragePathname(object.pathname)),
+  );
 
   return objects
+    .filter((object) => !isThumbnailPathname(source.prefix, object.pathname))
     .map((object) => {
       const encodedPath = encodePathname(object.pathname);
       const previewToken = createSourcePreviewToken(source.id, object.pathname);
       const mimeType = getMediaMimeType(object.contentType, object.pathname);
+      const mediaType = getMediaKind(mimeType, object.pathname);
+      const thumbnailPathname = getThumbnailPathname(
+        source.prefix,
+        object.pathname,
+      );
+      const hasThumbnail =
+        mediaType === "image" && thumbnailPathnames.has(thumbnailPathname);
+      const encodedThumbnailPath = encodePathname(thumbnailPathname);
+      const thumbnailPreviewToken = createSourcePreviewToken(
+        source.id,
+        thumbnailPathname,
+      );
       const sourceQuery = `source=${encodeURIComponent(source.id)}`;
 
       return {
@@ -221,8 +333,11 @@ export async function listImages(sourceId?: string | null): Promise<StoredImage[
         sourceId: source.id,
         sourceLabel: source.label,
         name: path.basename(object.pathname),
-        mediaType: getMediaKind(mimeType, object.pathname),
+        mediaType,
         mimeType,
+        thumbnailUrl: hasThumbnail
+          ? `/api/images/${encodedThumbnailPath}?${sourceQuery}&preview=1&token=${thumbnailPreviewToken}`
+          : undefined,
         url: `/api/images/${encodedPath}?${sourceQuery}&preview=1&token=${previewToken}`,
         originalUrl: `/api/images/${encodedPath}?${sourceQuery}`,
         uploadedAt: object.uploadedAt.toISOString(),
@@ -277,9 +392,11 @@ export async function readImage(
 
 export async function removeImage(name: string, sourceId?: string | null) {
   const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const source = getStorageSource(activeSourceId);
   const pathname = decodePathname(name);
   const storageProvider = await getStorageProvider(activeSourceId);
   await storageProvider.delete(pathname);
+  await storageProvider.delete(getThumbnailPathname(source.prefix, pathname));
 }
 
 export async function handleUploadRequest(
@@ -298,13 +415,19 @@ export async function handleUploadRequest(
   return storageProvider.handleClientUpload({
     body,
     request,
-    getUploadConstraints: async () => {
+    getUploadConstraints: async (pathname) => {
       if (!(await authorize())) {
         throw new Error("未授权");
       }
 
+      const sourcePrefix = getStorageSource(activeSourceId).prefix;
+      assertPathnameAllowed(pathname, sourcePrefix);
+
       return {
-        allowedContentTypes: ALLOWED_UPLOAD_CONTENT_TYPES,
+        allowedContentTypes: getAllowedContentTypesForPathname(
+          sourcePrefix,
+          pathname,
+        ),
         addRandomSuffix: false,
         maximumSizeInBytes: MAX_UPLOAD_SIZE_IN_BYTES,
       };
@@ -338,24 +461,50 @@ export async function createDirectUpload(
   }
 
   const activeSourceId = await getActiveStorageSourceId(sourceId);
+  const source = getStorageSource(activeSourceId);
+  const pathname = assertPathnameAllowed(options.pathname, source.prefix);
+
+  if (
+    isThumbnailPathname(source.prefix, pathname) &&
+    !options.contentType?.startsWith("image/")
+  ) {
+    throw new Error("缩略图路径仅支持图片文件");
+  }
+
   const storageProvider = await getStorageProvider(activeSourceId);
 
   if (!storageProvider.createDirectUpload) {
     throw new Error("当前存储提供方不支持直传。");
   }
 
-  return storageProvider.createDirectUpload(options);
+  return storageProvider.createDirectUpload({
+    ...options,
+    pathname,
+  });
 }
 
 export async function getImagesPayload(
   sourceId?: string | null,
+  options: ImagesPayloadOptions = {},
 ): Promise<StorageImagesPayload> {
   const activeSourceId = await getActiveStorageSourceId(sourceId);
   const images = await listImages(activeSourceId);
+  const pageSize = normalizePageSize(options.limit);
+  const cursorIndex = options.cursor
+    ? images.findIndex((image) => image.id === options.cursor)
+    : -1;
+  const startIndex = cursorIndex >= 0 ? cursorIndex + 1 : 0;
+  const pageImages = images.slice(startIndex, startIndex + pageSize + 1);
+  const hasMore = pageImages.length > pageSize;
 
   return {
     activeSourceId,
-    images,
+    images: pageImages.slice(0, pageSize),
+    pagination: {
+      hasMore,
+      nextCursor: hasMore ? getNextCursor(pageImages, pageSize) : null,
+      pageSize,
+    },
     sources: getPublicStorageSources(),
     storageUsage: getStorageUsage(images, activeSourceId),
   };

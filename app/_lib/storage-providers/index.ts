@@ -114,6 +114,7 @@ export function getPublicStorageSources(): PublicStorageSource[] {
   return getStorageSources().map((source) => ({
     id: source.id,
     label: source.label,
+    prefix: source.prefix,
     provider: source.provider,
     uploadMode: source.uploadMode,
   }));

@@ -23,7 +23,56 @@ import {
   TransformWrapper,
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
-import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+
+const MODAL_PREVIEW_SIZES = "(max-width: 640px) 100vw, 96vw";
+
+type ModalPreviewImageProps = {
+  alt: string;
+  onSettled: () => void;
+  optimizedSrc: string;
+  originalSrc: string;
+  useOriginal: boolean;
+};
+
+const ModalPreviewImage = memo(function ModalPreviewImage({
+  alt,
+  onSettled,
+  optimizedSrc,
+  originalSrc,
+  useOriginal,
+}: ModalPreviewImageProps) {
+  if (useOriginal) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={originalSrc}
+        alt={alt}
+        onLoad={onSettled}
+        onError={onSettled}
+        draggable={false}
+        className="h-full w-full select-none object-contain"
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={optimizedSrc}
+      alt={alt}
+      fill
+      loading="eager"
+      fetchPriority="high"
+      sizes={MODAL_PREVIEW_SIZES}
+      quality={82}
+      onLoad={onSettled}
+      onError={onSettled}
+      draggable={false}
+      className="select-none object-contain"
+    />
+  );
+});
 
 type ImageViewerModalProps = {
   deletingId: string | null;
@@ -76,6 +125,10 @@ export function ImageViewerModal({
     imageViewerRef.current?.resetTransform(0);
     imageViewerRef.current?.centerView(1, 0);
   }
+
+  const handleSelectedImageSettled = useCallback(() => {
+    setSelectedImageLoading(false);
+  }, []);
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
@@ -175,7 +228,10 @@ export function ImageViewerModal({
                 imageViewerRef.current = ref;
               }}
               onTransform={(_, state) => {
-                setPreviewScale(state.scale);
+                const nextScale = Number(state.scale.toFixed(2));
+                setPreviewScale((currentScale) =>
+                  currentScale === nextScale ? currentScale : nextScale,
+                );
               }}
             >
               <TransformComponent
@@ -191,23 +247,21 @@ export function ImageViewerModal({
                 }}
               >
                 <div className="flex h-full w-full items-center justify-center p-4 pt-24 pb-16 sm:p-8 sm:pt-24 sm:pb-20">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={
-                      previewUseOriginal
-                        ? selectedImage.originalUrl
-                        : selectedImage.url
-                    }
-                    alt={selectedImage.name}
-                    onLoad={() => setSelectedImageLoading(false)}
-                    onError={() => setSelectedImageLoading(false)}
-                    draggable={false}
-                    className="max-h-full max-w-full select-none object-contain transition-transform duration-200 ease-out"
+                  <div
+                    className="relative h-full w-full transition-transform duration-200 ease-out"
                     style={{
                       transform: `rotate(${previewRotation}deg)`,
                       transformOrigin: "center center",
                     }}
-                  />
+                  >
+                    <ModalPreviewImage
+                      alt={selectedImage.name}
+                      optimizedSrc={selectedImage.url}
+                      originalSrc={selectedImage.originalUrl}
+                      useOriginal={previewUseOriginal}
+                      onSettled={handleSelectedImageSettled}
+                    />
+                  </div>
                 </div>
               </TransformComponent>
             </TransformWrapper>

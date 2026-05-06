@@ -27,6 +27,7 @@ export type StorageSourceConfig = {
 export type PublicStorageSource = {
   id: string;
   label: string;
+  prefix: string;
   provider: StorageProviderName;
   uploadMode: StorageUploadMode;
 };
@@ -72,7 +73,7 @@ export type StorageUploadConstraints = {
 export type StorageClientUploadOptions = {
   body: unknown;
   request: Request;
-  getUploadConstraints: () => Promise<StorageUploadConstraints>;
+  getUploadConstraints: (pathname: string) => Promise<StorageUploadConstraints>;
 };
 
 export type StorageDirectUploadOptions = {

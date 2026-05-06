@@ -9,6 +9,7 @@ export type StoredImage = {
   name: string;
   mediaType: MediaKind;
   mimeType: string;
+  thumbnailUrl?: string;
   url: string;
   originalUrl: string;
   uploadedAt: string;
@@ -25,17 +26,26 @@ export type StorageUsage = {
 export type StorageSource = {
   id: string;
   label: string;
+  prefix: string;
   provider: "local" | "s3" | "vercel-blob";
   uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
+};
+
+export type ImagesPagination = {
+  hasMore: boolean;
+  nextCursor: string | null;
+  pageSize: number;
 };
 
 export type ImagesPayload = {
   activeSourceId: string;
   images: StoredImage[];
+  pagination: ImagesPagination;
   sources: StorageSource[];
   storageUsage: StorageUsage;
 };
 
 export type TransferAppProps = {
   initialAuthorized: boolean;
+  initialPayload: ImagesPayload | null;
 };

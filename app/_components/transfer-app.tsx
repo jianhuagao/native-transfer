@@ -1,6 +1,5 @@
 "use client";
 
-import { ImageViewerModal } from "@/app/_components/transfer/image-viewer-modal";
 import { LoginScreen } from "@/app/_components/transfer/login-screen";
 import { TransferUploadPanel } from "@/app/_components/transfer/transfer-upload-panel";
 import { HERO_IMAGE_PLACEHOLDER } from "@/app/_components/transfer/constants";
@@ -22,6 +21,8 @@ import {
   CircleStackIcon,
   PowerIcon,
 } from "@heroicons/react/24/solid";
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import {
   memo,
   startTransition,
@@ -30,6 +31,14 @@ import {
   useRef,
   useState,
 } from "react";
+
+const ImageViewerModal = dynamic(
+  () =>
+    import("@/app/_components/transfer/image-viewer-modal").then(
+      (module) => module.ImageViewerModal,
+    ),
+  { ssr: false },
+);
 
 const EMPTY_STORAGE_USAGE: StorageUsage = {
   totalBytes: 0,
@@ -40,11 +49,13 @@ const DEFAULT_UPLOAD_MODE = "form-data";
 const HERO_SWITCH_DELAY_MS = 400;
 const HERO_TRANSITION_MS = 600;
 const HERO_PREVIOUS_RETENTION_MS = 1900;
+const IMAGES_PAGE_SIZE = 60;
 const MEDIA_GRID_STYLE = {
   gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 13rem), 1fr))",
 };
 const MEDIA_TILE_IMAGE_SIZES =
   "(max-width: 640px) 50vw, (max-width: 960px) 33vw, (max-width: 1280px) 25vw, (max-width: 1680px) 20vw, 16vw";
+const MEDIA_TILE_PRELOAD_MARGIN = "0px 0px 160px 0px";
 
 type HeroBackdropState = {
   current: StoredImage | null;
@@ -71,6 +82,20 @@ function formatStoragePercent(percent: number, usedBytes: number) {
   }
 
   return `${Math.round(percent)}%`;
+}
+
+function removeImageFromUsage(usage: StorageUsage, image: StoredImage) {
+  const usedBytes = Math.max(0, usage.usedBytes - image.size);
+  const percent =
+    usage.totalBytes > 0
+      ? Math.min(100, (usedBytes / usage.totalBytes) * 100)
+      : 0;
+
+  return {
+    ...usage,
+    usedBytes,
+    percent,
+  };
 }
 
 function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
@@ -143,6 +168,48 @@ function StorageSourceSelect({
   );
 }
 
+function useInViewOnce<TElement extends Element>(
+  rootMargin = MEDIA_TILE_PRELOAD_MARGIN,
+) {
+  const [inView, setInView] = useState(false);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    return () => observerRef.current?.disconnect();
+  }, []);
+
+  const elementRef = useCallback(
+    (element: TElement | null) => {
+      observerRef.current?.disconnect();
+
+      if (!element || inView) {
+        return;
+      }
+
+      if (!("IntersectionObserver" in window)) {
+        setInView(true);
+        return;
+      }
+
+      observerRef.current = new IntersectionObserver(
+        ([entry]) => {
+          if (!entry?.isIntersecting) {
+            return;
+          }
+
+          setInView(true);
+          observerRef.current?.disconnect();
+        },
+        { rootMargin, threshold: 0.01 },
+      );
+      observerRef.current.observe(element);
+    },
+    [inView, rootMargin],
+  );
+
+  return { elementRef, inView };
+}
+
 const MediaTile = memo(function MediaTile({
   image,
   onOpenImage,
@@ -150,30 +217,38 @@ const MediaTile = memo(function MediaTile({
   image: StoredImage;
   onOpenImage: (image: StoredImage) => void;
 }) {
+  const { elementRef, inView } = useInViewOnce<HTMLButtonElement>();
+
   return (
     <button
       key={image.id}
+      ref={elementRef}
       type="button"
       onClick={() => onOpenImage(image)}
       className="group relative aspect-[1.58] overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-white/70"
     >
-      <MediaPreview
-        src={image.url}
-        alt={image.name}
-        mediaType={image.mediaType}
-        className="object-cover transition duration-500 group-hover:scale-105"
-        imageProps={{
-          fill: true,
-          loadingEffect: "fade",
-          sizes: MEDIA_TILE_IMAGE_SIZES,
-          quality: 70,
-          decoding: "async",
-          transition: {
-            overlayClassName: "duration-300",
-            imageClassName: "duration-300 ease-out",
-          },
-        }}
-      />
+      <span className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),rgba(255,255,255,0.03)_50%,rgba(0,0,0,0.18))]" />
+      {inView ? (
+        image.mediaType === "image" ? (
+          <Image
+            src={image.thumbnailUrl ?? image.url}
+            alt={image.name}
+            fill
+            loading="lazy"
+            sizes={MEDIA_TILE_IMAGE_SIZES}
+            quality={70}
+            decoding="async"
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <MediaPreview
+            src={image.thumbnailUrl ?? image.url}
+            alt={image.name}
+            mediaType={image.mediaType}
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
+        )
+      ) : null}
       <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
     </button>
   );
@@ -193,12 +268,18 @@ function MediaSkeletonGrid({ count }: { count: number }) {
 }
 
 const MediaShelf = memo(function MediaShelf({
+  hasMore,
   historyLoading,
   images,
+  loadingMore,
+  onLoadMore,
   onOpenImage,
 }: {
+  hasMore: boolean;
   historyLoading: boolean;
   images: StoredImage[];
+  loadingMore: boolean;
+  onLoadMore: () => void;
   onOpenImage: (image: StoredImage) => void;
 }) {
   return (
@@ -212,15 +293,32 @@ const MediaShelf = memo(function MediaShelf({
             {historyLoading ? (
               <MediaSkeletonGrid count={10} />
             ) : images.length > 0 ? (
-              <div className="grid gap-4" style={MEDIA_GRID_STYLE}>
-                {images.map((image) => (
-                  <MediaTile
-                    key={image.id}
-                    image={image}
-                    onOpenImage={onOpenImage}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-4" style={MEDIA_GRID_STYLE}>
+                  {images.map((image) => (
+                    <MediaTile
+                      key={image.id}
+                      image={image}
+                      onOpenImage={onOpenImage}
+                    />
+                  ))}
+                </div>
+                {hasMore ? (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={onLoadMore}
+                      disabled={loadingMore}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-white/12 bg-black/24 px-4 text-sm font-medium text-white/78 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      {loadingMore ? (
+                        <ArrowPathIcon className="size-4 animate-spin" />
+                      ) : null}
+                      {loadingMore ? "加载中" : "加载更多"}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62 sm:h-28 lg:h-32">
                 暂无媒体
@@ -237,11 +335,13 @@ function HeroImageLayer({
   blurred,
   image,
   onLoad,
+  priority = false,
   visible,
 }: {
   blurred: boolean;
   image: StoredImage;
   onLoad?: () => void;
+  priority?: boolean;
   visible: boolean;
 }) {
   return (
@@ -259,8 +359,8 @@ function HeroImageLayer({
           className="object-cover"
           imageProps={{
             fill: true,
-            loading: "eager",
-            fetchPriority: "high",
+            loading: priority ? "eager" : "lazy",
+            fetchPriority: priority ? "high" : "auto",
             placeholder: HERO_IMAGE_PLACEHOLDER,
             sizes: "100vw",
             quality: 78,
@@ -309,6 +409,7 @@ function HeroBackdrop({
               blurred={blurred}
               image={currentHero}
               onLoad={onCurrentHeroLoad}
+              priority
               visible={currentReady}
             />
           </div>
@@ -329,22 +430,46 @@ export function TransferApp(props: TransferAppProps) {
   return <TransferAppContent {...props} />;
 }
 
-function TransferAppContent({ initialAuthorized }: TransferAppProps) {
+function TransferAppContent({
+  initialAuthorized,
+  initialPayload,
+}: TransferAppProps) {
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [authNotice, setAuthNotice] = useState("");
   const [pageError, setPageError] = useState("");
-  const [images, setImages] = useState<StoredImage[]>([]);
-  const [sources, setSources] = useState<StorageSource[]>([]);
-  const [activeSourceId, setActiveSourceId] = useState("");
+  const [images, setImages] = useState<StoredImage[]>(
+    initialPayload?.images ?? [],
+  );
+  const [sources, setSources] = useState<StorageSource[]>(
+    initialPayload?.sources ?? [],
+  );
+  const [activeSourceId, setActiveSourceId] = useState(
+    initialPayload?.activeSourceId ?? "",
+  );
   const [storageUsage, setStorageUsage] =
-    useState<StorageUsage>(EMPTY_STORAGE_USAGE);
+    useState<StorageUsage>(
+      initialPayload?.storageUsage ?? EMPTY_STORAGE_USAGE,
+    );
+  const initialHero = initialPayload
+    ? pickLatestHeroImage(initialPayload.images)
+    : null;
   const [heroBackdrop, setHeroBackdrop] = useState<HeroBackdropState>({
-    current: null,
+    current: initialHero,
     previous: null,
     ready: false,
     version: 0,
   });
-  const [historyLoading, setHistoryLoading] = useState(initialAuthorized);
+  const [historyLoading, setHistoryLoading] = useState(
+    initialAuthorized && !initialPayload,
+  );
+  const [needsInitialFetch, setNeedsInitialFetch] = useState(!initialPayload);
+  const [hasMoreImages, setHasMoreImages] = useState(
+    initialPayload?.pagination.hasMore ?? false,
+  );
+  const [nextImagesCursor, setNextImagesCursor] = useState<string | null>(
+    initialPayload?.pagination.nextCursor ?? null,
+  );
+  const [loadingMoreImages, setLoadingMoreImages] = useState(false);
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
@@ -380,12 +505,40 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const applyImagesPayload = useCallback(
     (
       payload: ImagesPayload,
-      options: { resetHero?: boolean; clearSelected?: boolean } = {},
+      options: {
+        append?: boolean;
+        resetHero?: boolean;
+        clearSelected?: boolean;
+      } = {},
     ) => {
       setSources(payload.sources);
       setActiveSourceId(payload.activeSourceId);
-      setImages(payload.images);
+      setImages((currentImages) => {
+        if (!options.append) {
+          return payload.images;
+        }
+
+        const knownImages = new Set(
+          currentImages.map((image) => `${image.sourceId}:${image.id}`),
+        );
+
+        return [
+          ...currentImages,
+          ...payload.images.filter((image) => {
+            const imageKey = `${image.sourceId}:${image.id}`;
+
+            if (knownImages.has(imageKey)) {
+              return false;
+            }
+
+            knownImages.add(imageKey);
+            return true;
+          }),
+        ];
+      });
       setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
+      setHasMoreImages(payload.pagination.hasMore);
+      setNextImagesCursor(payload.pagination.nextCursor);
 
       if (options.resetHero) {
         cancelDelayedHeroUpdate();
@@ -397,6 +550,10 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       }
 
       setHeroBackdrop((state) => {
+        if (options.append) {
+          return state;
+        }
+
         const current = state.current;
         const currentStillExists = payload.images.some((image) => {
           return (
@@ -488,13 +645,13 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   }, []);
 
   useEffect(() => {
-    if (!authorized) {
+    if (!authorized || !needsInitialFetch) {
       return;
     }
 
     let cancelled = false;
 
-    fetch("/api/images", { cache: "no-store" })
+    fetch(`/api/images?limit=${IMAGES_PAGE_SIZE}`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("load failed");
@@ -505,6 +662,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         if (!cancelled) {
           setPageError("");
           applyImagesPayload(payload, { resetHero: true });
+          setNeedsInitialFetch(false);
         }
       })
       .catch(() => {
@@ -525,7 +683,12 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     return () => {
       cancelled = true;
     };
-  }, [applyImagesPayload, authorized, cancelDelayedHeroUpdate]);
+  }, [
+    applyImagesPayload,
+    authorized,
+    cancelDelayedHeroUpdate,
+    needsInitialFetch,
+  ]);
 
   useEffect(() => {
     if (!authorized) {
@@ -570,6 +733,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       }
 
       setHistoryLoading(true);
+      setNeedsInitialFetch(true);
       setAuthorized(true);
       return null;
     } catch {
@@ -590,6 +754,9 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setSources([]);
     setActiveSourceId("");
     setStorageUsage(EMPTY_STORAGE_USAGE);
+    setHasMoreImages(false);
+    setNextImagesCursor(null);
+    setNeedsInitialFetch(true);
     updateHeroImage(null);
     setSelectedImage(null);
     setBackgroundBlurred(false);
@@ -597,7 +764,9 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
   const refreshImages = useCallback(
     async (options: { resetHero?: boolean } = {}) => {
-      const response = await fetch("/api/images", { cache: "no-store" });
+      const response = await fetch(`/api/images?limit=${IMAGES_PAGE_SIZE}`, {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         throw new Error("refresh failed");
@@ -610,6 +779,37 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     },
     [applyImagesPayload],
   );
+
+  async function handleLoadMoreImages() {
+    if (loadingMoreImages || !hasMoreImages || !nextImagesCursor) {
+      return;
+    }
+
+    setLoadingMoreImages(true);
+
+    try {
+      const response = await fetch(
+        `/api/images?limit=${IMAGES_PAGE_SIZE}&cursor=${encodeURIComponent(
+          nextImagesCursor,
+        )}`,
+        { cache: "no-store" },
+      );
+
+      if (!response.ok) {
+        throw new Error("load more failed");
+      }
+
+      const payload = (await response.json()) as ImagesPayload;
+      startTransition(() => {
+        applyImagesPayload(payload, { append: true });
+      });
+      setPageError("");
+    } catch {
+      setPageError("加载更多失败，请稍后重试。");
+    } finally {
+      setLoadingMoreImages(false);
+    }
+  }
 
   async function handleStorageSourceChange(sourceId: string) {
     if (sourceId === activeSourceId || switchingSource) {
@@ -677,8 +877,33 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         throw new Error("delete failed");
       }
 
-      const payload = (await response.json()) as ImagesPayload;
-      applyImagesPayload(payload);
+      setImages((currentImages) =>
+        currentImages.filter((currentImage) => {
+          return !(
+            currentImage.id === image.id &&
+            currentImage.sourceId === image.sourceId
+          );
+        }),
+      );
+      setStorageUsage((currentUsage) => removeImageFromUsage(currentUsage, image));
+      setHeroBackdrop((state) => {
+        const deletingCurrent = isSameImage(state.current, image);
+        const deletingPrevious = isSameImage(state.previous, image);
+        const nextImages = images.filter((item) => {
+          return item.id !== image.id || item.sourceId !== image.sourceId;
+        });
+
+        if (!deletingCurrent && !deletingPrevious) {
+          return state;
+        }
+
+        return {
+          current: deletingCurrent ? pickLatestHeroImage(nextImages) : state.current,
+          previous: deletingPrevious ? null : state.previous,
+          ready: deletingCurrent ? false : state.ready,
+          version: state.version + 1,
+        };
+      });
       setPageError("");
       if (selectedImage?.id === image.id) {
         cancelDelayedHeroUpdate();
@@ -789,6 +1014,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
               <TransferUploadPanel
                 onUploaded={refreshImages}
                 sourceId={activeSourceId}
+                sourcePrefix={activeSource?.prefix ?? "uploads/"}
                 uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
               />
             </div>
@@ -802,8 +1028,11 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       </section>
 
       <MediaShelf
+        hasMore={hasMoreImages}
         historyLoading={historyLoading}
         images={images}
+        loadingMore={loadingMoreImages}
+        onLoadMore={() => void handleLoadMoreImages()}
         onOpenImage={openImageViewer}
       />
 
