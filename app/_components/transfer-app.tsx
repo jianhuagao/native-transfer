@@ -87,7 +87,7 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
       }
     >
       <CircleStackIcon className="size-4.5 shrink-0 text-cyan-100/86" />
-      <div className="min-w-0 flex-1 sm:min-w-[7.25rem]">
+      <div className="min-w-0 flex-1 sm:min-w-29">
         <div className="flex items-center justify-between gap-2 text-[11px] leading-none">
           <span className="hidden text-white/58 sm:inline">容量</span>
           <span className="truncate font-medium text-white">
@@ -131,7 +131,7 @@ function StorageSourceSelect({
         value={activeSourceId}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="min-w-0 max-w-full bg-transparent text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:opacity-55 sm:max-w-[9rem]"
+        className="min-w-0 max-w-full bg-transparent text-sm font-medium text-white outline-none disabled:cursor-not-allowed disabled:opacity-55 sm:max-w-36"
       >
         {sources.map((source) => (
           <option key={source.id} value={source.id} className="bg-[#111]">
@@ -155,7 +155,7 @@ const MediaTile = memo(function MediaTile({
       key={image.id}
       type="button"
       onClick={() => onOpenImage(image)}
-      className="group relative aspect-[1.58] overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70"
+      className="group relative aspect-[1.58] overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-white/70"
     >
       <MediaPreview
         src={image.url}
@@ -207,7 +207,7 @@ const MediaShelf = memo(function MediaShelf({
         <div className="nt-media-positioner">
           <div
             data-dock-rail
-            className="nt-media-dock rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-[32px] sm:px-4 sm:py-4"
+            className="nt-media-dock rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-4xl sm:px-4 sm:py-4"
           >
             {historyLoading ? (
               <MediaSkeletonGrid count={10} />
@@ -744,7 +744,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         previousHero={heroBackdrop.previous}
       />
 
-      <div className="absolute left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-[24px] border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
+      <div className="absolute left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
         <div className="flex min-w-0 items-center gap-2 sm:contents">
           <StorageSourceSelect
             activeSourceId={activeSourceId}
@@ -779,7 +779,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         </div>
       </div>
 
-      <section className="relative z-10 flex h-[100dvh]">
+      <section className="relative z-10 flex h-dvh">
         <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
           <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
             <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">

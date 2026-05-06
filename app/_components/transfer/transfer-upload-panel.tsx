@@ -268,7 +268,7 @@ export function TransferUploadPanel({
           <span className="block text-base font-semibold text-white">
             上传媒体
           </span>
-          <span className="mt-1 block max-w-[13rem] truncate text-sm text-white/62">
+          <span className="mt-1 block max-w-52 truncate text-sm text-white/62">
             {uploadStatus || (uploading ? "传输中" : "不压缩，不转换")}
           </span>
         </span>
