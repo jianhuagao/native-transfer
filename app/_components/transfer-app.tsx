@@ -35,87 +35,35 @@ const EMPTY_STORAGE_USAGE: StorageUsage = {
   usedBytes: 0,
   percent: 0,
 };
-const HERO_CACHE_KEY = "native-transfer:last-hero";
 const DEFAULT_UPLOAD_MODE = "form-data";
 const DEFAULT_DOCK_COLUMN_COUNT = 4;
 const DEFAULT_DOCK_HEIGHT = 160;
+const HERO_SWITCH_DELAY_MS = 400;
+const HERO_TRANSITION_MS = 1600;
+const HERO_PREVIOUS_RETENTION_MS = 1900;
 const MEDIA_GRID_STYLE = {
   gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 13rem), 1fr))",
 };
 const MEDIA_TILE_IMAGE_SIZES =
   "(max-width: 640px) 50vw, (max-width: 960px) 33vw, (max-width: 1280px) 25vw, (max-width: 1680px) 20vw, 16vw";
 
-function isStoredImage(value: unknown): value is StoredImage {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
+type HeroBackdropState = {
+  current: StoredImage | null;
+  previous: StoredImage | null;
+  ready: boolean;
+  version: number;
+};
 
-  const image = value as Partial<StoredImage>;
-
-  return (
-    typeof image.id === "string" &&
-    typeof image.sourceId === "string" &&
-    typeof image.sourceLabel === "string" &&
-    typeof image.name === "string" &&
-    (image.mediaType === "image" || image.mediaType === "video") &&
-    typeof image.mimeType === "string" &&
-    typeof image.url === "string" &&
-    typeof image.originalUrl === "string" &&
-    typeof image.uploadedAt === "string" &&
-    typeof image.uploadedAtLabel === "string" &&
-    typeof image.size === "number"
-  );
+function pickLatestHeroImage(images: StoredImage[]) {
+  return images.find((image) => image.mediaType === "image") ?? null;
 }
 
-function getHeroCacheKey(sourceId: string) {
-  return `${HERO_CACHE_KEY}:${sourceId}`;
+function getImageIdentity(image: StoredImage | null) {
+  return image ? `${image.sourceId}:${image.id}` : "";
 }
 
-function readCachedHeroImage(sourceId: string) {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const cached = window.localStorage.getItem(getHeroCacheKey(sourceId));
-
-    if (!cached) {
-      return null;
-    }
-
-    const parsed = JSON.parse(cached) as unknown;
-    return isStoredImage(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedHeroImage(sourceId: string, image: StoredImage | null) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    if (image) {
-      window.localStorage.setItem(
-        getHeroCacheKey(sourceId),
-        JSON.stringify(image),
-      );
-      return;
-    }
-
-    window.localStorage.removeItem(getHeroCacheKey(sourceId));
-  } catch {
-    return;
-  }
-}
-
-function pickRandomImage(images: StoredImage[]) {
-  if (images.length === 0) {
-    return null;
-  }
-
-  return images[Math.floor(Math.random() * images.length)] ?? null;
+function isSameImage(left: StoredImage | null, right: StoredImage | null) {
+  return getImageIdentity(left) === getImageIdentity(right);
 }
 
 function formatStoragePercent(percent: number, usedBytes: number) {
@@ -369,7 +317,7 @@ function MediaShelf({
       className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10"
       style={{ marginTop: -dockHeight }}
     >
-      <div className="mx-auto max-w-[96rem]">
+      <div className="mx-auto max-w-420">
         <div
           ref={dockRef}
           data-dock-rail
@@ -392,7 +340,7 @@ function MediaShelf({
               ))}
             </div>
           ) : (
-            <div className="flex aspect-[1.58] items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62">
+            <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62 sm:h-28 lg:h-32">
               暂无媒体
             </div>
           )}
@@ -421,12 +369,61 @@ function MediaShelf({
   );
 }
 
-function HeroBackdrop({
+function HeroImageLayer({
   blurred,
-  heroImage,
+  image,
+  onLoad,
+  visible,
 }: {
   blurred: boolean;
-  heroImage: StoredImage | null;
+  image: StoredImage;
+  onLoad?: () => void;
+  visible: boolean;
+}) {
+  return (
+    <div
+      className={`absolute inset-0 transition ease-out ${
+        visible ? (blurred ? "opacity-[0.74]" : "opacity-100") : "opacity-0"
+      } ${blurred ? "scale-105 blur-2xl" : "scale-100 blur-0"}`}
+      style={{ transitionDuration: `${HERO_TRANSITION_MS}ms` }}
+    >
+      <div className="absolute inset-0">
+        <MediaPreview
+          src={image.url}
+          alt={image.name}
+          mediaType={image.mediaType}
+          className="object-cover"
+          imageProps={{
+            fill: true,
+            loading: "eager",
+            fetchPriority: "high",
+            placeholder: HERO_IMAGE_PLACEHOLDER,
+            sizes: "100vw",
+            quality: 78,
+            onLoad,
+            transition: {
+              overlayClassName: "duration-700",
+              imageClassName: "duration-1000 ease-out",
+            },
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HeroBackdrop({
+  blurred,
+  currentHero,
+  currentReady,
+  onCurrentHeroLoad,
+  previousHero,
+}: {
+  blurred: boolean;
+  currentHero: StoredImage | null;
+  currentReady: boolean;
+  onCurrentHeroLoad: () => void;
+  previousHero: StoredImage | null;
 }) {
   return (
     <div aria-hidden className="fixed inset-0 z-0 overflow-hidden bg-[#050505]">
@@ -435,60 +432,27 @@ function HeroBackdrop({
         className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
         style={{ backgroundImage: `url("${HERO_IMAGE_PLACEHOLDER}")` }}
       />
-      {heroImage ? (
-        <div
-          className={`absolute inset-0 transition duration-700 ease-out ${
-            blurred
-              ? "scale-105 opacity-[0.74] blur-2xl"
-              : "scale-100 opacity-100"
-          }`}
-        >
-          {heroImage.mediaType === "video" ? (
-            <MediaPreview
-              key={`${heroImage.id}:${blurred ? "still" : "motion"}`}
-              src={heroImage.url}
-              alt={heroImage.name}
-              mediaType={heroImage.mediaType}
-              className="absolute inset-0 object-cover"
-              showVideoBadge={false}
-              videoProps={
-                blurred
-                  ? {
-                      "aria-hidden": true,
-                      preload: "metadata",
-                    }
-                  : {
-                      autoPlay: true,
-                      loop: true,
-                      "aria-hidden": true,
-                    }
-              }
+      {currentHero?.mediaType === "image" ? (
+        <div className="absolute inset-0">
+          {previousHero?.mediaType === "image" ? (
+            <div className="absolute inset-0 z-0">
+              <HeroImageLayer blurred={blurred} image={previousHero} visible />
+            </div>
+          ) : null}
+          <div className="absolute inset-0 z-10">
+            <HeroImageLayer
+              key={getImageIdentity(currentHero)}
+              blurred={blurred}
+              image={currentHero}
+              onLoad={onCurrentHeroLoad}
+              visible={currentReady}
             />
-          ) : (
-            <MediaPreview
-              src={heroImage.url}
-              alt={heroImage.name}
-              mediaType={heroImage.mediaType}
-              className="object-cover"
-              imageProps={{
-                fill: true,
-                loading: "eager",
-                fetchPriority: "high",
-                placeholder: HERO_IMAGE_PLACEHOLDER,
-                sizes: "100vw",
-                quality: 78,
-                transition: {
-                  overlayClassName: "duration-700",
-                  imageClassName: "duration-1000 ease-out",
-                },
-              }}
-            />
-          )}
+          </div>
         </div>
       ) : null}
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.28)_36%,rgba(0,0,0,0.04)_68%,rgba(0,0,0,0.32)_100%)]" />
       <div
-        className={`absolute inset-0 transition duration-700 ${
+        className={`absolute inset-0 transition duration-1000 ${
           blurred ? "bg-black/38 backdrop-blur-md" : "bg-black/0"
         }`}
       />
@@ -510,70 +474,145 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const [activeSourceId, setActiveSourceId] = useState("");
   const [storageUsage, setStorageUsage] =
     useState<StorageUsage>(EMPTY_STORAGE_USAGE);
-  const [heroImage, setHeroImage] = useState<StoredImage | null>(null);
+  const [heroBackdrop, setHeroBackdrop] = useState<HeroBackdropState>({
+    current: null,
+    previous: null,
+    ready: false,
+    version: 0,
+  });
   const [historyLoading, setHistoryLoading] = useState(initialAuthorized);
   const [selectedImage, setSelectedImage] = useState<StoredImage | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
   const [backgroundBlurred, setBackgroundBlurred] = useState(false);
+  const delayedHeroUpdateRef = useRef<number | null>(null);
   const activeSource = sources.find((source) => source.id === activeSourceId);
 
   function applyImagesPayload(
     payload: ImagesPayload,
-    options: { randomizeHero?: boolean; clearSelected?: boolean } = {},
+    options: { resetHero?: boolean; clearSelected?: boolean } = {},
   ) {
     setSources(payload.sources);
     setActiveSourceId(payload.activeSourceId);
     setImages(payload.images);
     setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
 
+    if (options.resetHero) {
+      cancelDelayedHeroUpdate();
+    }
+
     if (options.clearSelected) {
+      cancelDelayedHeroUpdate();
       setSelectedImage(null);
     }
 
-    setHeroImage((current) => {
+    setHeroBackdrop((state) => {
+      const current = state.current;
       const currentStillExists = payload.images.some((image) => {
-        return image.id === current?.id && image.sourceId === current?.sourceId;
+        return (
+          image.mediaType === "image" &&
+          image.id === current?.id &&
+          image.sourceId === current?.sourceId
+        );
       });
 
-      if (options.randomizeHero || !current || !currentStillExists) {
-        return pickRandomImage(payload.images);
+      if (options.resetHero || !current || !currentStillExists) {
+        const nextHero = pickLatestHeroImage(payload.images);
+
+        if (isSameImage(current, nextHero)) {
+          return state;
+        }
+
+        return {
+          current: nextHero,
+          previous: current && nextHero ? current : null,
+          ready: false,
+          version: state.version + 1,
+        };
       }
 
-      return current;
+      return state;
+    });
+  }
+
+  function updateHeroImage(nextHero: StoredImage | null) {
+    setHeroBackdrop((state) => {
+      if (isSameImage(state.current, nextHero)) {
+        return state;
+      }
+
+      return {
+        current: nextHero,
+        previous: state.current && nextHero ? state.current : null,
+        ready: false,
+        version: state.version + 1,
+      };
+    });
+  }
+
+  function cancelDelayedHeroUpdate() {
+    if (delayedHeroUpdateRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(delayedHeroUpdateRef.current);
+    delayedHeroUpdateRef.current = null;
+  }
+
+  function openImageViewer(image: StoredImage) {
+    cancelDelayedHeroUpdate();
+    setSelectedImage(image);
+  }
+
+  function selectImageInViewer(image: StoredImage) {
+    cancelDelayedHeroUpdate();
+    setSelectedImage(image);
+  }
+
+  function handleHeroImageLoad() {
+    setHeroBackdrop((state) => {
+      if (state.ready) {
+        return state;
+      }
+
+      return {
+        ...state,
+        ready: true,
+      };
     });
   }
 
   useEffect(() => {
-    if (!authorized || heroImage || !activeSourceId) {
+    if (!heroBackdrop.previous || !heroBackdrop.ready) {
       return;
     }
 
-    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setHeroBackdrop((state) => {
+        if (!state.previous) {
+          return state;
+        }
 
-    Promise.resolve().then(() => {
-      const cachedHeroImage = readCachedHeroImage(activeSourceId);
-
-      if (!cancelled && cachedHeroImage) {
-        setHeroImage(cachedHeroImage);
-      }
-    });
+        return {
+          ...state,
+          previous: null,
+        };
+      });
+    }, HERO_PREVIOUS_RETENTION_MS);
 
     return () => {
-      cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, [activeSourceId, authorized, heroImage]);
+  }, [heroBackdrop.previous, heroBackdrop.ready, heroBackdrop.version]);
 
   useEffect(() => {
-    if (!authorized || !activeSourceId) {
-      return;
-    }
-
-    if (heroImage) {
-      writeCachedHeroImage(activeSourceId, heroImage);
-    }
-  }, [activeSourceId, authorized, heroImage]);
+    return () => {
+      if (delayedHeroUpdateRef.current !== null) {
+        window.clearTimeout(delayedHeroUpdateRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!authorized) {
@@ -592,13 +631,14 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
 
         if (!cancelled) {
           setPageError("");
-          applyImagesPayload(payload, { randomizeHero: true });
+          applyImagesPayload(payload, { resetHero: true });
         }
       })
       .catch(() => {
         if (!cancelled) {
           setAuthorized(false);
           setAuthNotice("登录状态失效，请重新输入密码。");
+          cancelDelayedHeroUpdate();
           setSelectedImage(null);
           setBackgroundBlurred(false);
         }
@@ -669,18 +709,20 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       method: "POST",
     });
 
+    cancelDelayedHeroUpdate();
+
     setPageError("");
     setAuthorized(false);
     setImages([]);
     setSources([]);
     setActiveSourceId("");
     setStorageUsage(EMPTY_STORAGE_USAGE);
-    setHeroImage(null);
+    updateHeroImage(null);
     setSelectedImage(null);
     setBackgroundBlurred(false);
   }
 
-  async function refreshImages(options: { randomizeHero?: boolean } = {}) {
+  async function refreshImages(options: { resetHero?: boolean } = {}) {
     const response = await fetch("/api/images", { cache: "no-store" });
 
     if (!response.ok) {
@@ -718,7 +760,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       startTransition(() => {
         applyImagesPayload(payload, {
           clearSelected: true,
-          randomizeHero: true,
+          resetHero: true,
         });
       });
       setPageError("");
@@ -738,7 +780,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setRefreshingImages(true);
 
     try {
-      await refreshImages({ randomizeHero: true });
+      await refreshImages({ resetHero: true });
       setPageError("");
     } catch {
       setPageError("刷新失败，请稍后重试。");
@@ -763,6 +805,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       applyImagesPayload(payload);
       setPageError("");
       if (selectedImage?.id === image.id) {
+        cancelDelayedHeroUpdate();
         setSelectedImage(null);
       }
     } catch {
@@ -795,13 +838,35 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     }
   }
 
+  function handleCloseImageViewer() {
+    const imageForBackground =
+      selectedImage?.mediaType === "image" ? selectedImage : null;
+
+    cancelDelayedHeroUpdate();
+
+    setSelectedImage(null);
+
+    if (imageForBackground) {
+      delayedHeroUpdateRef.current = window.setTimeout(() => {
+        updateHeroImage(imageForBackground);
+        delayedHeroUpdateRef.current = null;
+      }, HERO_SWITCH_DELAY_MS);
+    }
+  }
+
   if (!authorized) {
     return <LoginScreen notice={authNotice} onLogin={handleLogin} />;
   }
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
-      <HeroBackdrop blurred={backgroundBlurred} heroImage={heroImage} />
+      <HeroBackdrop
+        blurred={backgroundBlurred}
+        currentHero={heroBackdrop.current}
+        currentReady={heroBackdrop.ready}
+        onCurrentHeroLoad={handleHeroImageLoad}
+        previousHero={heroBackdrop.previous}
+      />
 
       <div className="fixed left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-[24px] border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
         <div className="flex min-w-0 items-center gap-2 sm:contents">
@@ -863,7 +928,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
       <MediaShelf
         historyLoading={historyLoading}
         images={images}
-        onOpenImage={setSelectedImage}
+        onOpenImage={openImageViewer}
       />
 
       {selectedImage ? (
@@ -872,11 +937,11 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
           deletingId={deletingId}
           images={images}
           selectedImage={selectedImage}
-          onClose={() => setSelectedImage(null)}
+          onClose={handleCloseImageViewer}
           onCopyLink={handleCopyLink}
           onDelete={handleDelete}
           onDownload={handleDownload}
-          onSelectImage={setSelectedImage}
+          onSelectImage={selectImageInViewer}
         />
       ) : null}
     </main>

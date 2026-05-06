@@ -15,7 +15,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Manrope", "Manrope Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    "Manrope", "Manrope Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
 }
 
@@ -28,7 +29,8 @@ body {
     radial-gradient(circle at top, rgba(103, 183, 255, 0.18), transparent 28%),
     linear-gradient(180deg, #050814 0%, #080b12 52%, #020304 100%);
   color: var(--foreground);
-  font-family: "Manrope", "Manrope Fallback", ui-sans-serif, system-ui, sans-serif;
+  font-family:
+    "Manrope", "Manrope Fallback", ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
@@ -53,7 +55,7 @@ img {
 }
 
 html {
-  font-size: clamp(14px, 0.833333vw, 20px);
+  font-size: clamp(12px, 0.833333vw, 20px);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
