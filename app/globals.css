@@ -66,15 +66,22 @@ html {
 
 .nt-media-positioner {
   --dock-columns: 1;
-  --dock-gap: 0.75rem;
+  --dock-gap: 1rem;
   --dock-row-gap-total: 0rem;
   --dock-padding-block: 0.75rem;
-  --dock-bottom-inset: 0.5rem;
+  --dock-padding-inline: 0.75rem;
+  --dock-inline-chrome: calc(
+    var(--dock-padding-inline) + var(--dock-padding-inline) + 2px
+  );
+  --dock-bottom-inset: calc(var(--dock-gap) - 1px);
   margin-top: calc(
     -1 *
       (
-        var(--dock-padding-block) +
-          ((100cqw - var(--dock-row-gap-total)) / var(--dock-columns) / 1.58) +
+        1px + var(--dock-padding-block) +
+          (
+            (100cqw - var(--dock-inline-chrome) - var(--dock-row-gap-total)) /
+              var(--dock-columns) / 1.58
+          ) +
           var(--dock-bottom-inset)
       )
   );
@@ -84,7 +91,8 @@ html {
   .nt-media-positioner {
     --dock-gap: 1rem;
     --dock-padding-block: 1rem;
-    --dock-bottom-inset: 0.625rem;
+    --dock-padding-inline: 1rem;
+    --dock-bottom-inset: calc(var(--dock-gap) - 1px);
   }
 }
 
