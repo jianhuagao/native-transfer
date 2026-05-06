@@ -23,11 +23,12 @@ import {
   PowerIcon,
 } from "@heroicons/react/24/solid";
 import {
+  memo,
   startTransition,
+  useCallback,
   useEffect,
   useRef,
   useState,
-  type RefObject,
 } from "react";
 
 const EMPTY_STORAGE_USAGE: StorageUsage = {
@@ -36,10 +37,8 @@ const EMPTY_STORAGE_USAGE: StorageUsage = {
   percent: 0,
 };
 const DEFAULT_UPLOAD_MODE = "form-data";
-const DEFAULT_DOCK_COLUMN_COUNT = 4;
-const DEFAULT_DOCK_HEIGHT = 160;
 const HERO_SWITCH_DELAY_MS = 400;
-const HERO_TRANSITION_MS = 1600;
+const HERO_TRANSITION_MS = 600;
 const HERO_PREVIOUS_RETENTION_MS = 1900;
 const MEDIA_GRID_STYLE = {
   gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 13rem), 1fr))",
@@ -144,109 +143,7 @@ function StorageSourceSelect({
   );
 }
 
-function getRenderedGridColumnCount(element: HTMLElement) {
-  const columns = window.getComputedStyle(element).gridTemplateColumns;
-
-  if (!columns || columns === "none") {
-    return 0;
-  }
-
-  return columns.split(" ").filter(Boolean).length;
-}
-
-function useGridColumnCount() {
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const [columnCount, setColumnCount] = useState(DEFAULT_DOCK_COLUMN_COUNT);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-
-    if (!grid) {
-      return;
-    }
-
-    const gridElement = grid;
-    let frameId = 0;
-
-    function syncColumnCount() {
-      window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(() => {
-        const nextColumnCount = getRenderedGridColumnCount(gridElement);
-
-        if (nextColumnCount > 0) {
-          setColumnCount((current) =>
-            current === nextColumnCount ? current : nextColumnCount,
-          );
-        }
-      });
-    }
-
-    syncColumnCount();
-
-    const resizeObserver =
-      "ResizeObserver" in window ? new ResizeObserver(syncColumnCount) : null;
-
-    resizeObserver?.observe(gridElement);
-    window.addEventListener("resize", syncColumnCount);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", syncColumnCount);
-    };
-  }, []);
-
-  return { columnCount, gridRef };
-}
-
-function useElementHeight<TElement extends HTMLElement>() {
-  const elementRef = useRef<TElement | null>(null);
-  const [height, setHeight] = useState(DEFAULT_DOCK_HEIGHT);
-
-  useEffect(() => {
-    const element = elementRef.current;
-
-    if (!element) {
-      return;
-    }
-
-    const measuredElement = element;
-    let frameId = 0;
-
-    function syncHeight() {
-      window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(() => {
-        const nextHeight = Math.ceil(
-          measuredElement.getBoundingClientRect().height,
-        );
-
-        if (nextHeight > 0) {
-          setHeight((current) =>
-            current === nextHeight ? current : nextHeight,
-          );
-        }
-      });
-    }
-
-    syncHeight();
-
-    const resizeObserver =
-      "ResizeObserver" in window ? new ResizeObserver(syncHeight) : null;
-
-    resizeObserver?.observe(measuredElement);
-    window.addEventListener("resize", syncHeight);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", syncHeight);
-    };
-  }, []);
-
-  return { elementRef, height };
-}
-
-function MediaTile({
+const MediaTile = memo(function MediaTile({
   image,
   onOpenImage,
 }: {
@@ -267,25 +164,24 @@ function MediaTile({
         className="object-cover transition duration-500 group-hover:scale-105"
         imageProps={{
           fill: true,
+          loadingEffect: "fade",
           sizes: MEDIA_TILE_IMAGE_SIZES,
           quality: 70,
           decoding: "async",
+          transition: {
+            overlayClassName: "duration-300",
+            imageClassName: "duration-300 ease-out",
+          },
         }}
       />
       <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
     </button>
   );
-}
+});
 
-function MediaSkeletonGrid({
-  count,
-  gridRef,
-}: {
-  count: number;
-  gridRef?: RefObject<HTMLDivElement | null>;
-}) {
+function MediaSkeletonGrid({ count }: { count: number }) {
   return (
-    <div ref={gridRef} className="grid gap-3 sm:gap-4" style={MEDIA_GRID_STYLE}>
+    <div className="grid gap-3 sm:gap-4" style={MEDIA_GRID_STYLE}>
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
@@ -296,7 +192,7 @@ function MediaSkeletonGrid({
   );
 }
 
-function MediaShelf({
+const MediaShelf = memo(function MediaShelf({
   historyLoading,
   images,
   onOpenImage,
@@ -305,69 +201,37 @@ function MediaShelf({
   images: StoredImage[];
   onOpenImage: (image: StoredImage) => void;
 }) {
-  const { columnCount, gridRef } = useGridColumnCount();
-  const { elementRef: dockRef, height: dockHeight } =
-    useElementHeight<HTMLDivElement>();
-  const dockImages = images.slice(0, columnCount);
-  const remainingImages = images.slice(columnCount);
-  const loadingRemainderCount = Math.max(columnCount * 2, 6);
-
   return (
-    <section
-      className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10"
-      style={{ marginTop: -dockHeight }}
-    >
-      <div className="mx-auto max-w-420">
-        <div
-          ref={dockRef}
-          data-dock-rail
-          className="rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-[32px] sm:px-4 sm:py-4"
-        >
-          {historyLoading ? (
-            <MediaSkeletonGrid count={columnCount} gridRef={gridRef} />
-          ) : images.length > 0 ? (
-            <div
-              ref={gridRef}
-              className="grid gap-3 sm:gap-4"
-              style={MEDIA_GRID_STYLE}
-            >
-              {dockImages.map((image) => (
-                <MediaTile
-                  key={image.id}
-                  image={image}
-                  onOpenImage={onOpenImage}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62 sm:h-28 lg:h-32">
-              暂无媒体
-            </div>
-          )}
-        </div>
-
-        {historyLoading ? (
-          <div className="mt-3 sm:mt-4">
-            <MediaSkeletonGrid count={loadingRemainderCount} />
-          </div>
-        ) : remainingImages.length > 0 ? (
+    <section className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10">
+      <div className="nt-media-frame mx-auto max-w-420">
+        <div className="nt-media-positioner">
           <div
-            className="mt-3 grid gap-3 sm:mt-4 sm:gap-4"
-            style={MEDIA_GRID_STYLE}
+            data-dock-rail
+            className="nt-media-dock rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-[32px] sm:px-4 sm:py-4"
           >
-            {remainingImages.map((image) => (
-              <MediaTile
-                key={image.id}
-                image={image}
-                onOpenImage={onOpenImage}
-              />
-            ))}
+            {historyLoading ? (
+              <MediaSkeletonGrid count={10} />
+            ) : images.length > 0 ? (
+              <div className="grid gap-3 sm:gap-4" style={MEDIA_GRID_STYLE}>
+                {images.map((image) => (
+                  <MediaTile
+                    key={image.id}
+                    image={image}
+                    onOpenImage={onOpenImage}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62 sm:h-28 lg:h-32">
+                暂无媒体
+              </div>
+            )}
           </div>
-        ) : null}
+        </div>
       </div>
     </section>
   );
-}
+});
 
 function HeroImageLayer({
   blurred,
@@ -489,54 +353,16 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
   const delayedHeroUpdateRef = useRef<number | null>(null);
   const activeSource = sources.find((source) => source.id === activeSourceId);
 
-  function applyImagesPayload(
-    payload: ImagesPayload,
-    options: { resetHero?: boolean; clearSelected?: boolean } = {},
-  ) {
-    setSources(payload.sources);
-    setActiveSourceId(payload.activeSourceId);
-    setImages(payload.images);
-    setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
-
-    if (options.resetHero) {
-      cancelDelayedHeroUpdate();
+  const cancelDelayedHeroUpdate = useCallback(() => {
+    if (delayedHeroUpdateRef.current === null) {
+      return;
     }
 
-    if (options.clearSelected) {
-      cancelDelayedHeroUpdate();
-      setSelectedImage(null);
-    }
+    window.clearTimeout(delayedHeroUpdateRef.current);
+    delayedHeroUpdateRef.current = null;
+  }, []);
 
-    setHeroBackdrop((state) => {
-      const current = state.current;
-      const currentStillExists = payload.images.some((image) => {
-        return (
-          image.mediaType === "image" &&
-          image.id === current?.id &&
-          image.sourceId === current?.sourceId
-        );
-      });
-
-      if (options.resetHero || !current || !currentStillExists) {
-        const nextHero = pickLatestHeroImage(payload.images);
-
-        if (isSameImage(current, nextHero)) {
-          return state;
-        }
-
-        return {
-          current: nextHero,
-          previous: current && nextHero ? current : null,
-          ready: false,
-          version: state.version + 1,
-        };
-      }
-
-      return state;
-    });
-  }
-
-  function updateHeroImage(nextHero: StoredImage | null) {
+  const updateHeroImage = useCallback((nextHero: StoredImage | null) => {
     setHeroBackdrop((state) => {
       if (isSameImage(state.current, nextHero)) {
         return state;
@@ -549,28 +375,75 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         version: state.version + 1,
       };
     });
-  }
+  }, []);
 
-  function cancelDelayedHeroUpdate() {
-    if (delayedHeroUpdateRef.current === null) {
-      return;
-    }
+  const applyImagesPayload = useCallback(
+    (
+      payload: ImagesPayload,
+      options: { resetHero?: boolean; clearSelected?: boolean } = {},
+    ) => {
+      setSources(payload.sources);
+      setActiveSourceId(payload.activeSourceId);
+      setImages(payload.images);
+      setStorageUsage(payload.storageUsage ?? EMPTY_STORAGE_USAGE);
 
-    window.clearTimeout(delayedHeroUpdateRef.current);
-    delayedHeroUpdateRef.current = null;
-  }
+      if (options.resetHero) {
+        cancelDelayedHeroUpdate();
+      }
 
-  function openImageViewer(image: StoredImage) {
-    cancelDelayedHeroUpdate();
-    setSelectedImage(image);
-  }
+      if (options.clearSelected) {
+        cancelDelayedHeroUpdate();
+        setSelectedImage(null);
+      }
 
-  function selectImageInViewer(image: StoredImage) {
-    cancelDelayedHeroUpdate();
-    setSelectedImage(image);
-  }
+      setHeroBackdrop((state) => {
+        const current = state.current;
+        const currentStillExists = payload.images.some((image) => {
+          return (
+            image.mediaType === "image" &&
+            image.id === current?.id &&
+            image.sourceId === current?.sourceId
+          );
+        });
 
-  function handleHeroImageLoad() {
+        if (options.resetHero || !current || !currentStillExists) {
+          const nextHero = pickLatestHeroImage(payload.images);
+
+          if (isSameImage(current, nextHero)) {
+            return state;
+          }
+
+          return {
+            current: nextHero,
+            previous: current && nextHero ? current : null,
+            ready: false,
+            version: state.version + 1,
+          };
+        }
+
+        return state;
+      });
+    },
+    [cancelDelayedHeroUpdate],
+  );
+
+  const openImageViewer = useCallback(
+    (image: StoredImage) => {
+      cancelDelayedHeroUpdate();
+      setSelectedImage(image);
+    },
+    [cancelDelayedHeroUpdate],
+  );
+
+  const selectImageInViewer = useCallback(
+    (image: StoredImage) => {
+      cancelDelayedHeroUpdate();
+      setSelectedImage(image);
+    },
+    [cancelDelayedHeroUpdate],
+  );
+
+  const handleHeroImageLoad = useCallback(() => {
     setHeroBackdrop((state) => {
       if (state.ready) {
         return state;
@@ -581,7 +454,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
         ready: true,
       };
     });
-  }
+  }, []);
 
   useEffect(() => {
     if (!heroBackdrop.previous || !heroBackdrop.ready) {
@@ -652,7 +525,7 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     return () => {
       cancelled = true;
     };
-  }, [authorized]);
+  }, [applyImagesPayload, authorized, cancelDelayedHeroUpdate]);
 
   useEffect(() => {
     if (!authorized) {
@@ -722,18 +595,21 @@ function TransferAppContent({ initialAuthorized }: TransferAppProps) {
     setBackgroundBlurred(false);
   }
 
-  async function refreshImages(options: { resetHero?: boolean } = {}) {
-    const response = await fetch("/api/images", { cache: "no-store" });
+  const refreshImages = useCallback(
+    async (options: { resetHero?: boolean } = {}) => {
+      const response = await fetch("/api/images", { cache: "no-store" });
 
-    if (!response.ok) {
-      throw new Error("refresh failed");
-    }
+      if (!response.ok) {
+        throw new Error("refresh failed");
+      }
 
-    const payload = (await response.json()) as ImagesPayload;
-    startTransition(() => {
-      applyImagesPayload(payload, options);
-    });
-  }
+      const payload = (await response.json()) as ImagesPayload;
+      startTransition(() => {
+        applyImagesPayload(payload, options);
+      });
+    },
+    [applyImagesPayload],
+  );
 
   async function handleStorageSourceChange(sourceId: string) {
     if (sourceId === activeSourceId || switchingSource) {

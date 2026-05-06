@@ -13,6 +13,7 @@ type ProgressiveImageLoadingIndicator = {
   enabled?: boolean;
   sizeClassName?: string;
 };
+type ProgressiveImageLoadingEffect = "blur" | "fade";
 
 function getImageSrcValue(src: ProgressiveImageProps["src"]) {
   if (typeof src === "string") {
@@ -34,10 +35,12 @@ export function ProgressiveImage({
   placeholder = IMAGE_PLACEHOLDER,
   src,
   loadingIndicator,
+  loadingEffect = "blur",
   transition,
   ...props
 }: ProgressiveImageProps & {
   loadingIndicator?: ProgressiveImageLoadingIndicator;
+  loadingEffect?: ProgressiveImageLoadingEffect;
   transition?: ProgressiveImageTransition;
 }) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
@@ -83,7 +86,9 @@ export function ProgressiveImage({
         className={`${className ?? ""} transition ${imageTransitionClassName} ${
           loaded
             ? "scale-100 opacity-100 blur-0"
-            : "scale-[1.02] opacity-100 blur-xl"
+            : loadingEffect === "blur"
+              ? "scale-[1.02] opacity-100 blur-xl"
+              : "scale-[1.01] opacity-100 blur-0"
         }`}
       />
     </>
