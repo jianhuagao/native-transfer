@@ -301,7 +301,7 @@ const MediaTile = memo(function MediaTile({
   return (
     <div
       ref={elementRef}
-      className={`group relative aspect-[1.58] overflow-hidden rounded-[22px] border bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 ${
+      className={`group relative aspect-[1.58] select-none overflow-hidden rounded-[22px] border bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] [-webkit-touch-callout:none] [-webkit-user-select:none] [touch-action:manipulation] transition duration-300 hover:-translate-y-1 ${
         active
           ? "border-cyan-100/74 ring-2 ring-cyan-100/24"
           : "border-white/12 hover:border-white/42"
@@ -331,7 +331,7 @@ const MediaTile = memo(function MediaTile({
           }
         }}
         aria-label={`打开 ${image.name}`}
-        className="absolute inset-0 focus-visible:outline focus-visible:outline-white/70"
+        className="absolute inset-0 select-none focus-visible:outline focus-visible:outline-white/70"
       >
         {inView ? (
           image.mediaType === "image" ? (
@@ -749,6 +749,7 @@ function TransferAppContent({
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [uploadQueueVisible, setUploadQueueVisible] = useState(false);
   const [backgroundBlurred, setBackgroundBlurred] = useState(false);
   const delayedHeroUpdateRef = useRef<number | null>(null);
   const activeSource = sources.find((source) => source.id === activeSourceId);
@@ -1290,7 +1291,11 @@ function TransferAppContent({
         </div>
       </div>
 
-      <section className="relative z-10 flex h-dvh">
+      <section
+        className={`relative z-10 flex transition-[height,min-height] duration-300 ${
+          uploadQueueVisible ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh" : "h-dvh"
+        }`}
+      >
         <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
           <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
             <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
@@ -1298,6 +1303,7 @@ function TransferAppContent({
             </h1>
             <div className="relative z-40 mt-14">
               <TransferUploadPanel
+                onQueueVisibilityChange={setUploadQueueVisible}
                 onUploaded={refreshImages}
                 sourceId={activeSourceId}
                 sourcePrefix={activeSource?.prefix ?? "uploads/"}

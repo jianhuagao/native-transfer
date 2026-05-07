@@ -26,6 +26,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 type TransferUploadPanelProps = {
+  onQueueVisibilityChange?: (visible: boolean) => void;
   onUploaded: () => Promise<void>;
   sourceId: string;
   sourcePrefix: string;
@@ -107,6 +108,7 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 export function TransferUploadPanel({
+  onQueueVisibilityChange,
   onUploaded,
   sourceId,
   sourcePrefix,
@@ -474,6 +476,10 @@ export function TransferUploadPanel({
       return remainingItems;
     });
   }
+
+  useEffect(() => {
+    onQueueVisibilityChange?.(queueVisible);
+  }, [onQueueVisibilityChange, queueVisible]);
 
   useEffect(() => {
     function handlePaste(event: ClipboardEvent) {
