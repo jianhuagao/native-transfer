@@ -6,13 +6,19 @@ type UploadMediaOptions = {
   uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
   pathname: string;
   onProgress: (percentage: number) => void;
+  signal?: AbortSignal;
 };
+
+function createAbortError() {
+  return new DOMException("Upload cancelled", "AbortError");
+}
 
 function uploadWithFormData({
   file,
   sourceId,
   pathname,
   onProgress,
+  signal,
 }: UploadMediaOptions) {
   return new Promise<void>((resolve, reject) => {
     const formData = new FormData();
@@ -23,6 +29,18 @@ function uploadWithFormData({
     const request = new XMLHttpRequest();
     request.open("POST", "/api/images/upload");
 
+    function abortUpload() {
+      request.abort();
+      reject(createAbortError());
+    }
+
+    if (signal?.aborted) {
+      abortUpload();
+      return;
+    }
+
+    signal?.addEventListener("abort", abortUpload, { once: true });
+
     request.upload.addEventListener("progress", (event) => {
       if (!event.lengthComputable) {
         return;
@@ -32,6 +50,8 @@ function uploadWithFormData({
     });
 
     request.addEventListener("load", () => {
+      signal?.removeEventListener("abort", abortUpload);
+
       if (request.status >= 200 && request.status < 300) {
         onProgress(100);
         resolve();
@@ -47,7 +67,12 @@ function uploadWithFormData({
     });
 
     request.addEventListener("error", () => {
+      signal?.removeEventListener("abort", abortUpload);
       reject(new Error("上传失败，请检查网络或服务状态。"));
+    });
+
+    request.addEventListener("abort", () => {
+      signal?.removeEventListener("abort", abortUpload);
     });
 
     request.send(formData);
@@ -59,11 +84,13 @@ async function uploadWithVercelBlobClient({
   sourceId,
   pathname,
   onProgress,
+  signal,
 }: UploadMediaOptions) {
   const { upload } = await import("@vercel/blob/client");
 
   await upload(pathname, file, {
     access: "private",
+    abortSignal: signal,
     handleUploadUrl: `/api/images/upload?source=${encodeURIComponent(sourceId)}`,
     clientPayload: JSON.stringify({ sourceId }),
     headers: {
@@ -81,6 +108,7 @@ async function createDirectUpload({
   file,
   sourceId,
   pathname,
+  signal,
 }: UploadMediaOptions) {
   const response = await fetch(
     `/api/images/upload?source=${encodeURIComponent(sourceId)}`,
@@ -98,6 +126,7 @@ async function createDirectUpload({
           size: file.size,
         },
       }),
+      signal,
     },
   );
 
@@ -129,6 +158,18 @@ async function uploadWithS3PresignedUrl(options: UploadMediaOptions) {
     const request = new XMLHttpRequest();
     request.open(upload.method, upload.url);
 
+    function abortUpload() {
+      request.abort();
+      reject(createAbortError());
+    }
+
+    if (options.signal?.aborted) {
+      abortUpload();
+      return;
+    }
+
+    options.signal?.addEventListener("abort", abortUpload, { once: true });
+
     for (const [key, value] of Object.entries(upload.headers ?? {})) {
       request.setRequestHeader(key, value);
     }
@@ -142,6 +183,8 @@ async function uploadWithS3PresignedUrl(options: UploadMediaOptions) {
     });
 
     request.addEventListener("load", () => {
+      options.signal?.removeEventListener("abort", abortUpload);
+
       if (request.status >= 200 && request.status < 300) {
         options.onProgress(100);
         resolve();
@@ -152,7 +195,12 @@ async function uploadWithS3PresignedUrl(options: UploadMediaOptions) {
     });
 
     request.addEventListener("error", () => {
+      options.signal?.removeEventListener("abort", abortUpload);
       reject(new Error("上传失败，请检查存储桶 CORS 或服务状态。"));
+    });
+
+    request.addEventListener("abort", () => {
+      options.signal?.removeEventListener("abort", abortUpload);
     });
 
     request.send(options.file);
@@ -165,9 +213,17 @@ export async function uploadMedia({
   uploadMode,
   pathname,
   onProgress,
+  signal,
 }: UploadMediaOptions) {
   if (uploadMode === "form-data") {
-    await uploadWithFormData({ file, sourceId, uploadMode, pathname, onProgress });
+    await uploadWithFormData({
+      file,
+      sourceId,
+      uploadMode,
+      pathname,
+      onProgress,
+      signal,
+    });
     return;
   }
 
@@ -178,6 +234,7 @@ export async function uploadMedia({
       uploadMode,
       pathname,
       onProgress,
+      signal,
     });
     return;
   }
@@ -188,5 +245,6 @@ export async function uploadMedia({
     uploadMode,
     pathname,
     onProgress,
+    signal,
   });
 }

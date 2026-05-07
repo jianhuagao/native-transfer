@@ -108,3 +108,16 @@ export function getDefaultExtension(contentType?: string | null) {
 
   return ".jpg";
 }
+
+export function isAllowedUploadMedia(
+  contentType?: string | null,
+  fileName = "",
+) {
+  if (contentType?.startsWith("image/") || contentType?.startsWith("video/")) {
+    return true;
+  }
+
+  const extension = getExtension(fileName);
+
+  return imageExtensions.has(extension) || videoExtensions.has(extension);
+}

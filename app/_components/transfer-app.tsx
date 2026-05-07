@@ -17,9 +17,14 @@ import {
 } from "@/app/_components/transfer/utils";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
+  ArrowDownOnSquareIcon,
   ArrowPathIcon,
+  CheckIcon,
   CircleStackIcon,
+  LinkIcon,
   PowerIcon,
+  TrashIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/solid";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -56,6 +61,9 @@ const MEDIA_GRID_STYLE = {
 const MEDIA_TILE_IMAGE_SIZES =
   "(max-width: 640px) 50vw, (max-width: 960px) 33vw, (max-width: 1280px) 25vw, (max-width: 1680px) 20vw, 16vw";
 const MEDIA_TILE_PRELOAD_MARGIN = "0px 0px 160px 0px";
+const QUICK_ACTION_PRESS_MS = 420;
+const QUICK_DELETE_CONFIRM_MS = 2400;
+const COPY_FEEDBACK_MS = 1400;
 
 type HeroBackdropState = {
   current: StoredImage | null;
@@ -70,6 +78,10 @@ function pickLatestHeroImage(images: StoredImage[]) {
 
 function getImageIdentity(image: StoredImage | null) {
   return image ? `${image.sourceId}:${image.id}` : "";
+}
+
+function getStoredImageKey(image: StoredImage) {
+  return `${image.sourceId}:${image.id}`;
 }
 
 function isSameImage(left: StoredImage | null, right: StoredImage | null) {
@@ -211,46 +223,203 @@ function useInViewOnce<TElement extends Element>(
 }
 
 const MediaTile = memo(function MediaTile({
+  active,
+  copied,
+  deleteConfirming,
+  deleting,
   image,
+  onActivateActions,
+  onClearActions,
+  onCopyImage,
+  onDeleteImage,
+  onDownloadImage,
   onOpenImage,
 }: {
+  active: boolean;
+  copied: boolean;
+  deleteConfirming: boolean;
+  deleting: boolean;
   image: StoredImage;
+  onActivateActions: (image: StoredImage) => void;
+  onClearActions: () => void;
+  onCopyImage: (image: StoredImage) => void;
+  onDeleteImage: (image: StoredImage) => void;
+  onDownloadImage: (image: StoredImage) => void;
   onOpenImage: (image: StoredImage) => void;
 }) {
-  const { elementRef, inView } = useInViewOnce<HTMLButtonElement>();
+  const { elementRef, inView } = useInViewOnce<HTMLDivElement>();
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") {
+      return;
+    }
+
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      onActivateActions(image);
+      longPressTimerRef.current = null;
+
+      if ("vibrate" in navigator) {
+        navigator.vibrate(8);
+      }
+    }, QUICK_ACTION_PRESS_MS);
+  }
+
+  function runQuickAction(
+    event: React.MouseEvent<HTMLButtonElement>,
+    action: (image: StoredImage) => void,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    clearLongPressTimer();
+    action(image);
+  }
+
+  useEffect(() => clearLongPressTimer, []);
 
   return (
-    <button
-      key={image.id}
+    <div
       ref={elementRef}
-      type="button"
-      onClick={() => onOpenImage(image)}
-      className="group relative aspect-[1.58] overflow-hidden rounded-[22px] border border-white/12 bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-white/42 focus-visible:outline focus-visible:outline-white/70"
+      className={`group relative aspect-[1.58] overflow-hidden rounded-[22px] border bg-black/30 text-left shadow-[0_16px_42px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 ${
+        active
+          ? "border-cyan-100/74 ring-2 ring-cyan-100/24"
+          : "border-white/12 hover:border-white/42"
+      }`}
     >
       <span className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),rgba(255,255,255,0.03)_50%,rgba(0,0,0,0.18))]" />
-      {inView ? (
-        image.mediaType === "image" ? (
-          <Image
-            src={image.thumbnailUrl ?? image.url}
-            alt={image.name}
-            fill
-            loading="lazy"
-            sizes={MEDIA_TILE_IMAGE_SIZES}
-            quality={70}
-            decoding="async"
-            className="object-cover transition duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <MediaPreview
-            src={image.thumbnailUrl ?? image.url}
-            alt={image.name}
-            mediaType={image.mediaType}
-            className="object-cover transition duration-500 group-hover:scale-105"
-          />
-        )
+      <button
+        type="button"
+        onClick={(event) => {
+          if (longPressTriggeredRef.current) {
+            event.preventDefault();
+            longPressTriggeredRef.current = false;
+            return;
+          }
+
+          onClearActions();
+          onOpenImage(image);
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={clearLongPressTimer}
+        onPointerCancel={clearLongPressTimer}
+        onPointerLeave={clearLongPressTimer}
+        onContextMenu={(event) => {
+          if (isTouchLikeDevice()) {
+            event.preventDefault();
+            onActivateActions(image);
+          }
+        }}
+        aria-label={`打开 ${image.name}`}
+        className="absolute inset-0 focus-visible:outline focus-visible:outline-white/70"
+      >
+        {inView ? (
+          image.mediaType === "image" ? (
+            <Image
+              src={image.thumbnailUrl ?? image.url}
+              alt={image.name}
+              fill
+              loading="lazy"
+              sizes={MEDIA_TILE_IMAGE_SIZES}
+              quality={70}
+              decoding="async"
+              className="object-cover transition duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <MediaPreview
+              src={image.thumbnailUrl ?? image.url}
+              alt={image.name}
+              mediaType={image.mediaType}
+              className="object-cover transition duration-500 group-hover:scale-105"
+            />
+          )
+        ) : null}
+        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
+      </button>
+
+      <div
+        className={`absolute inset-x-2 top-2 flex items-center justify-end gap-1 transition duration-200 ${
+          active
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={(event) => runQuickAction(event, onCopyImage)}
+          title={copied ? "已复制" : "复制链接"}
+          aria-label={`${copied ? "已复制" : "复制链接"} ${image.name}`}
+          className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
+        >
+          {copied ? (
+            <CheckIcon className="size-4 text-emerald-200" />
+          ) : (
+            <LinkIcon className="size-4" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => runQuickAction(event, onDownloadImage)}
+          title="下载原图"
+          aria-label={`下载 ${image.name}`}
+          className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
+        >
+          <ArrowDownOnSquareIcon className="size-4" />
+        </button>
+        <button
+          type="button"
+          disabled={deleting}
+          onClick={(event) => runQuickAction(event, onDeleteImage)}
+          title={deleteConfirming ? "再次点击确认删除" : "删除"}
+          aria-label={`${deleteConfirming ? "确认删除" : "删除"} ${image.name}`}
+          className={`flex h-8 items-center justify-center rounded-full border shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition disabled:cursor-not-allowed disabled:opacity-60 ${
+            deleteConfirming
+              ? "w-14 border-rose-200/28 bg-rose-400/24 px-2 text-[11px] font-medium text-rose-50"
+              : "w-8 border-white/12 bg-black/46 text-rose-100 hover:bg-rose-400/18"
+          }`}
+        >
+          {deleting ? (
+            <ArrowPathIcon className="size-4 animate-spin" />
+          ) : deleteConfirming ? (
+            "确认"
+          ) : (
+            <TrashIcon className="size-4" />
+          )}
+        </button>
+        {active ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onClearActions();
+            }}
+            title="收起"
+            aria-label="收起快捷操作"
+            className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
+          >
+            <XMarkIcon className="size-4" />
+          </button>
+        ) : null}
+      </div>
+
+      {active ? (
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-full border border-white/10 bg-black/42 px-3 py-1.5 text-xs font-medium text-white/72 backdrop-blur-md sm:hidden">
+          已选择，可复制、下载或删除
+        </div>
       ) : null}
-      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.36))]" />
-    </button>
+    </div>
   );
 });
 
@@ -268,20 +437,101 @@ function MediaSkeletonGrid({ count }: { count: number }) {
 }
 
 const MediaShelf = memo(function MediaShelf({
+  deletingId,
   hasMore,
   historyLoading,
   images,
   loadingMore,
+  onCopyImage,
+  onDeleteImage,
+  onDownloadImage,
   onLoadMore,
   onOpenImage,
 }: {
+  deletingId: string | null;
   hasMore: boolean;
   historyLoading: boolean;
   images: StoredImage[];
   loadingMore: boolean;
+  onCopyImage: (image: StoredImage) => Promise<void>;
+  onDeleteImage: (image: StoredImage) => Promise<void>;
+  onDownloadImage: (image: StoredImage) => void;
   onLoadMore: () => void;
   onOpenImage: (image: StoredImage) => void;
 }) {
+  const [activeQuickActionKey, setActiveQuickActionKey] = useState("");
+  const [copiedImageKey, setCopiedImageKey] = useState("");
+  const [deleteConfirmKey, setDeleteConfirmKey] = useState("");
+  const copiedTimerRef = useRef<number | null>(null);
+  const deleteConfirmTimerRef = useRef<number | null>(null);
+
+  function clearCopiedTimer() {
+    if (copiedTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = null;
+  }
+
+  function clearDeleteConfirmTimer() {
+    if (deleteConfirmTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(deleteConfirmTimerRef.current);
+    deleteConfirmTimerRef.current = null;
+  }
+
+  async function handleQuickCopy(image: StoredImage) {
+    const imageKey = getStoredImageKey(image);
+
+    await onCopyImage(image);
+    clearCopiedTimer();
+    setCopiedImageKey(imageKey);
+    copiedTimerRef.current = window.setTimeout(() => {
+      setCopiedImageKey("");
+      copiedTimerRef.current = null;
+    }, COPY_FEEDBACK_MS);
+  }
+
+  async function handleQuickDelete(image: StoredImage) {
+    const imageKey = getStoredImageKey(image);
+
+    if (deleteConfirmKey !== imageKey) {
+      clearDeleteConfirmTimer();
+      setDeleteConfirmKey(imageKey);
+      setActiveQuickActionKey(imageKey);
+      deleteConfirmTimerRef.current = window.setTimeout(() => {
+        setDeleteConfirmKey("");
+        deleteConfirmTimerRef.current = null;
+      }, QUICK_DELETE_CONFIRM_MS);
+      return;
+    }
+
+    clearDeleteConfirmTimer();
+    setDeleteConfirmKey("");
+    await onDeleteImage(image);
+    setActiveQuickActionKey("");
+  }
+
+  function handleActivateActions(image: StoredImage) {
+    setActiveQuickActionKey(getStoredImageKey(image));
+  }
+
+  function handleClearActions() {
+    setActiveQuickActionKey("");
+    setDeleteConfirmKey("");
+    clearDeleteConfirmTimer();
+  }
+
+  useEffect(() => {
+    return () => {
+      clearCopiedTimer();
+      clearDeleteConfirmTimer();
+    };
+  }, []);
+
   return (
     <section className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10">
       <div className="nt-media-frame mx-auto max-w-420">
@@ -298,7 +548,22 @@ const MediaShelf = memo(function MediaShelf({
                   {images.map((image) => (
                     <MediaTile
                       key={image.id}
+                      active={activeQuickActionKey === getStoredImageKey(image)}
+                      copied={copiedImageKey === getStoredImageKey(image)}
+                      deleteConfirming={
+                        deleteConfirmKey === getStoredImageKey(image)
+                      }
+                      deleting={deletingId === image.id}
                       image={image}
+                      onActivateActions={handleActivateActions}
+                      onClearActions={handleClearActions}
+                      onCopyImage={(quickImage) => {
+                        void handleQuickCopy(quickImage);
+                      }}
+                      onDeleteImage={(quickImage) => {
+                        void handleQuickDelete(quickImage);
+                      }}
+                      onDownloadImage={onDownloadImage}
                       onOpenImage={onOpenImage}
                     />
                   ))}
@@ -1028,10 +1293,14 @@ function TransferAppContent({
       </section>
 
       <MediaShelf
+        deletingId={deletingId}
         hasMore={hasMoreImages}
         historyLoading={historyLoading}
         images={images}
         loadingMore={loadingMoreImages}
+        onCopyImage={handleCopyLink}
+        onDeleteImage={handleDelete}
+        onDownloadImage={handleDownload}
         onLoadMore={() => void handleLoadMoreImages()}
         onOpenImage={openImageViewer}
       />
