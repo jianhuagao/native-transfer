@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   type ListObjectsV2CommandOutput,
   ListObjectsV2Command,
   NoSuchKey,
@@ -82,6 +83,42 @@ export function createS3StorageProvider(
       await upload.done();
 
       return { pathname };
+    },
+
+    async putStream(pathname, stream, options) {
+      const upload = new Upload({
+        client: getClient(),
+        params: {
+          Bucket: s3Config.bucket,
+          Key: pathname,
+          Body: Readable.fromWeb(stream as never),
+          ContentLength: options.size,
+          ContentType: options.contentType,
+        },
+      });
+
+      await upload.done();
+
+      return { pathname };
+    },
+
+    async exists(pathname) {
+      try {
+        await getClient().send(
+          new HeadObjectCommand({
+            Bucket: s3Config.bucket,
+            Key: pathname,
+          }),
+        );
+
+        return true;
+      } catch (error) {
+        if (isNotFound(error)) {
+          return false;
+        }
+
+        throw error;
+      }
     },
 
     async list(options) {

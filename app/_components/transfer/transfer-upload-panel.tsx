@@ -572,15 +572,6 @@ export function TransferUploadPanel({
                     }}
                   />
                 </g>
-                {!activeItem ? (
-                  <path
-                    d="M40 27V53M27 40H53"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                ) : null}
                 <defs>
                   <linearGradient
                     id="upload-progress-gradient"

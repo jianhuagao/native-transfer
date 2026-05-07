@@ -1,8 +1,10 @@
 import {
   del,
   get,
+  head,
   list,
   put,
+  BlobNotFoundError,
   type BlobAccessType,
 } from "@vercel/blob";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
@@ -29,10 +31,37 @@ export function createVercelBlobStorageProvider(
         ...commandOptions,
         access: toBlobAccess(options.access),
         addRandomSuffix: options.addRandomSuffix,
+        allowOverwrite: options.allowOverwrite,
         contentType: options.contentType,
       });
 
       return { pathname: blob.pathname };
+    },
+
+    async putStream(pathname, stream, options) {
+      const blob = await put(pathname, stream, {
+        ...commandOptions,
+        access: toBlobAccess(options.access),
+        addRandomSuffix: options.addRandomSuffix,
+        allowOverwrite: options.allowOverwrite,
+        contentType: options.contentType,
+        multipart: true,
+      });
+
+      return { pathname: blob.pathname };
+    },
+
+    async exists(pathname) {
+      try {
+        await head(pathname, commandOptions);
+        return true;
+      } catch (error) {
+        if (error instanceof BlobNotFoundError) {
+          return false;
+        }
+
+        throw error;
+      }
     },
 
     async list(options) {

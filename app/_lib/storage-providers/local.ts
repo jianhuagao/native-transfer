@@ -1,6 +1,8 @@
 import { createReadStream } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 
 import type {
@@ -107,6 +109,32 @@ export function createLocalStorageProvider(
       await writeFile(filePath, Buffer.from(await body.arrayBuffer()));
 
       return { pathname };
+    },
+
+    async putStream(pathname, stream) {
+      const filePath = resolveStoragePath(source, pathname);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await pipeline(
+        Readable.fromWeb(stream as never),
+        createWriteStream(filePath),
+      );
+
+      return { pathname };
+    },
+
+    async exists(pathname) {
+      try {
+        const fileStat = await stat(resolveStoragePath(source, pathname));
+        return fileStat.isFile();
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+
+        if (code === "ENOENT") {
+          return false;
+        }
+
+        throw error;
+      }
     },
 
     async list(options) {

@@ -94,11 +94,44 @@ const MAX_UPLOAD_SIZE_IN_BYTES = 1024 * 1024 * 200;
 const DEFAULT_IMAGES_PAGE_SIZE = 60;
 const MAX_IMAGES_PAGE_SIZE = 120;
 const MAX_STORAGE_LIST_LIMIT = 1000;
+const MAX_TRANSFER_ITEMS = 100;
 const THUMBNAIL_DIRECTORY = "~thumbs";
 
 type ImagesPayloadOptions = {
   cursor?: string | null;
   limit?: number | null;
+};
+
+export type TransferConflictStrategy = "skip" | "rename" | "overwrite";
+
+export type TransferImageRequest = {
+  conflictStrategy: TransferConflictStrategy;
+  deleteSourceAfterCopy: boolean;
+  fromSourceId: string;
+  ids: string[];
+  toSourceId: string;
+};
+
+export type TransferImageResult = {
+  id: string;
+  name: string;
+  sourcePathname: string;
+  status: "copied" | "failed" | "skipped";
+  targetPathname?: string;
+  message?: string;
+  thumbnail?: "copied" | "missing" | "skipped" | "failed";
+};
+
+export type TransferImagesSummary = {
+  copied: number;
+  failed: number;
+  skipped: number;
+  total: number;
+};
+
+export type TransferImagesPayload = {
+  results: TransferImageResult[];
+  summary: TransferImagesSummary;
 };
 
 function getStorageAccess(sourceId?: string | null): StorageAccess {
@@ -238,6 +271,76 @@ function isThumbnailPathname(sourcePrefix: string, pathname: string) {
   return normalizeStoragePathname(pathname).startsWith(
     `${sourcePrefix}${THUMBNAIL_DIRECTORY}/`,
   );
+}
+
+function getPathnameRelativeToPrefix(pathname: string, prefix: string) {
+  const normalized = normalizeStoragePathname(pathname);
+
+  if (!normalized.startsWith(prefix)) {
+    throw new Error("文件不属于来源存储源");
+  }
+
+  return normalized.slice(prefix.length);
+}
+
+function mapPathnameToSourcePrefix(
+  pathname: string,
+  fromPrefix: string,
+  toPrefix: string,
+) {
+  return `${toPrefix}${getPathnameRelativeToPrefix(pathname, fromPrefix)}`;
+}
+
+function appendPathnameSuffix(pathname: string, suffix: string) {
+  const directory = path.posix.dirname(pathname);
+  const extension = path.posix.extname(pathname);
+  const baseName = path.posix.basename(pathname, extension);
+  const nextBaseName = `${baseName}${suffix}`;
+
+  return directory === "."
+    ? `${nextBaseName}${extension}`
+    : `${directory}/${nextBaseName}${extension}`;
+}
+
+async function resolveTransferTargetPathname(
+  pathname: string,
+  exists: (targetPathname: string) => Promise<boolean>,
+  conflictStrategy: TransferConflictStrategy,
+) {
+  if (conflictStrategy === "overwrite") {
+    return {
+      pathname,
+      skipped: false,
+    };
+  }
+
+  if (!(await exists(pathname))) {
+    return {
+      pathname,
+      skipped: false,
+    };
+  }
+
+  if (conflictStrategy === "skip") {
+    return {
+      pathname,
+      skipped: true,
+    };
+  }
+
+  for (let index = 1; index <= 999; index += 1) {
+    const suffix = index === 1 ? "-copy" : `-copy-${index}`;
+    const nextPathname = appendPathnameSuffix(pathname, suffix);
+
+    if (!(await exists(nextPathname))) {
+      return {
+        pathname: nextPathname,
+        skipped: false,
+      };
+    }
+  }
+
+  throw new Error("无法生成不冲突的目标文件名");
 }
 
 function normalizePageSize(limit?: number | null) {
@@ -397,6 +500,216 @@ export async function removeImage(name: string, sourceId?: string | null) {
   const storageProvider = await getStorageProvider(activeSourceId);
   await storageProvider.delete(pathname);
   await storageProvider.delete(getThumbnailPathname(source.prefix, pathname));
+}
+
+async function copyStorageObject({
+  fromPathname,
+  fromSourceId,
+  toPathname,
+  toSourceId,
+}: {
+  fromPathname: string;
+  fromSourceId: string;
+  toPathname: string;
+  toSourceId: string;
+}) {
+  const toSource = getStorageSource(toSourceId);
+  const fromProvider = await getStorageProvider(fromSourceId);
+  const toProvider = await getStorageProvider(toSourceId);
+  const readResult = await fromProvider.read(fromPathname, {
+    access: getStorageAccess(fromSourceId),
+  });
+
+  if (!readResult?.stream || readResult.statusCode === 304) {
+    throw new Error("源文件不存在或无法读取");
+  }
+
+  await toProvider.putStream(toPathname, readResult.stream, {
+    access: getStorageAccess(toSourceId),
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: getMediaMimeType(readResult.contentType, fromPathname),
+    size: readResult.size,
+  });
+
+  return {
+    pathname: toPathname,
+    size: readResult.size,
+    source: toSource,
+  };
+}
+
+async function copyStorageThumbnail({
+  conflictStrategy,
+  fromPathname,
+  fromSourceId,
+  targetOriginalPathname,
+  toSourceId,
+}: {
+  conflictStrategy: TransferConflictStrategy;
+  fromPathname: string;
+  fromSourceId: string;
+  targetOriginalPathname: string;
+  toSourceId: string;
+}): Promise<TransferImageResult["thumbnail"]> {
+  const fromSource = getStorageSource(fromSourceId);
+  const toSource = getStorageSource(toSourceId);
+  const fromProvider = await getStorageProvider(fromSourceId);
+  const toProvider = await getStorageProvider(toSourceId);
+  const fromThumbnailPathname = getThumbnailPathname(
+    fromSource.prefix,
+    fromPathname,
+  );
+  const hasThumbnail = await fromProvider.exists(fromThumbnailPathname);
+
+  if (!hasThumbnail) {
+    return "missing";
+  }
+
+  const targetThumbnailPathname = getThumbnailPathname(
+    toSource.prefix,
+    targetOriginalPathname,
+  );
+  const targetThumbnailExists =
+    conflictStrategy !== "overwrite" &&
+    (await toProvider.exists(targetThumbnailPathname));
+
+  if (targetThumbnailExists) {
+    return "skipped";
+  }
+
+  try {
+    await copyStorageObject({
+      fromPathname: fromThumbnailPathname,
+      fromSourceId,
+      toPathname: targetThumbnailPathname,
+      toSourceId,
+    });
+
+    return "copied";
+  } catch {
+    return "failed";
+  }
+}
+
+export async function transferImages({
+  conflictStrategy,
+  deleteSourceAfterCopy,
+  fromSourceId,
+  ids,
+  toSourceId,
+}: TransferImageRequest): Promise<TransferImagesPayload> {
+  if (fromSourceId === toSourceId) {
+    throw new Error("来源和目标存储源不能相同");
+  }
+
+  if (!ids.length) {
+    throw new Error("请选择要迁移的媒体");
+  }
+
+  if (ids.length > MAX_TRANSFER_ITEMS) {
+    throw new Error(`单次最多迁移 ${MAX_TRANSFER_ITEMS} 个媒体`);
+  }
+
+  const fromSource = getStorageSource(fromSourceId);
+  const toSource = getStorageSource(toSourceId);
+  const toProvider = await getStorageProvider(toSource.id);
+  const fromProvider = await getStorageProvider(fromSource.id);
+  const results: TransferImageResult[] = [];
+
+  for (const rawId of ids) {
+    const sourcePathname = assertPathnameAllowed(
+      decodePathname(rawId),
+      fromSource.prefix,
+    );
+    const name = path.basename(sourcePathname);
+
+    if (isThumbnailPathname(fromSource.prefix, sourcePathname)) {
+      results.push({
+        id: rawId,
+        name,
+        sourcePathname,
+        status: "failed",
+        message: "不能直接迁移缩略图路径",
+      });
+      continue;
+    }
+
+    try {
+      const desiredTargetPathname = mapPathnameToSourcePrefix(
+        sourcePathname,
+        fromSource.prefix,
+        toSource.prefix,
+      );
+      const target = await resolveTransferTargetPathname(
+        desiredTargetPathname,
+        (targetPathname) => toProvider.exists(targetPathname),
+        conflictStrategy,
+      );
+
+      if (target.skipped) {
+        results.push({
+          id: rawId,
+          name,
+          sourcePathname,
+          status: "skipped",
+          targetPathname: target.pathname,
+          message: "目标源已存在同名文件",
+          thumbnail: "skipped",
+        });
+        continue;
+      }
+
+      await copyStorageObject({
+        fromPathname: sourcePathname,
+        fromSourceId: fromSource.id,
+        toPathname: target.pathname,
+        toSourceId: toSource.id,
+      });
+
+      const thumbnail = await copyStorageThumbnail({
+        conflictStrategy,
+        fromPathname: sourcePathname,
+        fromSourceId: fromSource.id,
+        targetOriginalPathname: target.pathname,
+        toSourceId: toSource.id,
+      });
+
+      if (deleteSourceAfterCopy) {
+        await fromProvider.delete(sourcePathname);
+        await fromProvider.delete(
+          getThumbnailPathname(fromSource.prefix, sourcePathname),
+        );
+      }
+
+      results.push({
+        id: rawId,
+        name,
+        sourcePathname,
+        status: "copied",
+        targetPathname: target.pathname,
+        thumbnail,
+      });
+    } catch (error) {
+      results.push({
+        id: rawId,
+        name,
+        sourcePathname,
+        status: "failed",
+        message: error instanceof Error ? error.message : "迁移失败",
+      });
+    }
+  }
+
+  return {
+    results,
+    summary: {
+      copied: results.filter((result) => result.status === "copied").length,
+      failed: results.filter((result) => result.status === "failed").length,
+      skipped: results.filter((result) => result.status === "skipped").length,
+      total: results.length,
+    },
+  };
 }
 
 export async function handleUploadRequest(

@@ -43,6 +43,7 @@ export type StoragePutOptions = {
   access: StorageAccess;
   contentType?: string;
   addRandomSuffix?: boolean;
+  allowOverwrite?: boolean;
 };
 
 export type StorageListOptions = {
@@ -95,6 +96,12 @@ export type StorageProvider = {
     body: File,
     options: StoragePutOptions,
   ): Promise<{ pathname: string }>;
+  putStream(
+    pathname: string,
+    stream: ReadableStream<Uint8Array>,
+    options: StoragePutOptions & { size?: number },
+  ): Promise<{ pathname: string }>;
+  exists(pathname: string): Promise<boolean>;
   list(options: StorageListOptions): Promise<StorageObject[]>;
   read(
     pathname: string,

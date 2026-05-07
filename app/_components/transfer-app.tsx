@@ -19,6 +19,7 @@ import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
   ArrowDownOnSquareIcon,
   ArrowPathIcon,
+  ArrowsRightLeftIcon,
   CheckIcon,
   CircleStackIcon,
   LinkIcon,
@@ -41,6 +42,14 @@ const ImageViewerModal = dynamic(
   () =>
     import("@/app/_components/transfer/image-viewer-modal").then(
       (module) => module.ImageViewerModal,
+    ),
+  { ssr: false },
+);
+
+const SourceTransferModal = dynamic(
+  () =>
+    import("@/app/_components/transfer/source-transfer-modal").then(
+      (module) => module.SourceTransferModal,
     ),
   { ssr: false },
 );
@@ -739,6 +748,7 @@ function TransferAppContent({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [backgroundBlurred, setBackgroundBlurred] = useState(false);
   const delayedHeroUpdateRef = useRef<number | null>(null);
   const activeSource = sources.find((source) => source.id === activeSourceId);
@@ -1245,6 +1255,17 @@ function TransferAppContent({
           <StorageUsageBadge usage={storageUsage} />
         </div>
         <div className="flex justify-end gap-2 sm:contents">
+          {sources.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => setTransferModalOpen(true)}
+              aria-label="迁移媒体"
+              title="迁移媒体"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
+            >
+              <ArrowsRightLeftIcon className="size-5" />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleRefreshImages()}
@@ -1275,7 +1296,7 @@ function TransferAppContent({
             <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
               Native Transfer
             </h1>
-            <div className="mt-14">
+            <div className="relative z-40 mt-14">
               <TransferUploadPanel
                 onUploaded={refreshImages}
                 sourceId={activeSourceId}
@@ -1316,6 +1337,16 @@ function TransferAppContent({
           onDelete={handleDelete}
           onDownload={handleDownload}
           onSelectImage={selectImageInViewer}
+        />
+      ) : null}
+
+      {transferModalOpen ? (
+        <SourceTransferModal
+          activeSourceId={activeSourceId}
+          images={images}
+          sources={sources}
+          onClose={() => setTransferModalOpen(false)}
+          onTransferred={() => refreshImages({ resetHero: true })}
         />
       ) : null}
     </main>

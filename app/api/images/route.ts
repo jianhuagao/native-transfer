@@ -16,9 +16,10 @@ export async function GET(request: NextRequest) {
 
   const limit = Number(request.nextUrl.searchParams.get("limit"));
   const cursor = request.nextUrl.searchParams.get("cursor");
+  const sourceId = request.nextUrl.searchParams.get("source");
 
   return NextResponse.json(
-    await getImagesPayload(null, {
+    await getImagesPayload(sourceId, {
       cursor,
       limit,
     }),
