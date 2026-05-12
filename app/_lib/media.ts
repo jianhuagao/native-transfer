@@ -4,6 +4,7 @@ export const ALLOWED_UPLOAD_CONTENT_TYPES = ["image/*", "video/*"];
 
 export const MEDIA_INPUT_ACCEPT =
   "image/*,video/*,.mp4,.m4v,.mov,.webm,.ogv,.avi,.mkv";
+export const IMAGE_INPUT_ACCEPT = "image/*";
 
 const imageExtensions = new Set([
   ".avif",
@@ -112,12 +113,17 @@ export function getDefaultExtension(contentType?: string | null) {
 export function isAllowedUploadMedia(
   contentType?: string | null,
   fileName = "",
+  allowVideo = true,
 ) {
-  if (contentType?.startsWith("image/") || contentType?.startsWith("video/")) {
+  if (contentType?.startsWith("image/")) {
+    return true;
+  }
+
+  if (allowVideo && contentType?.startsWith("video/")) {
     return true;
   }
 
   const extension = getExtension(fileName);
 
-  return imageExtensions.has(extension) || videoExtensions.has(extension);
+  return imageExtensions.has(extension) || (allowVideo && videoExtensions.has(extension));
 }

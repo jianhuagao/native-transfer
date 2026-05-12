@@ -102,6 +102,14 @@ type ImagesPayloadOptions = {
   limit?: number | null;
 };
 
+type UploadConstraintOptions = {
+  allowVideo?: boolean;
+  countPrefix?: string;
+  maxFiles?: number;
+  pathnamePrefix?: string;
+  pathnamePrefixes?: string[];
+};
+
 export type TransferConflictStrategy = "skip" | "rename" | "overwrite";
 
 export type TransferImageRequest = {
@@ -211,9 +219,15 @@ export function verifySourcePreviewToken(
   return verifyPreviewToken(`${sourceId}:${pathname}`, token);
 }
 
-function assertUploadFileAllowed(file: File) {
+function assertUploadFileAllowed(file: File, allowVideo = true) {
   if (file.size > MAX_UPLOAD_SIZE_IN_BYTES) {
     throw new Error("单文件大小不能超过 200MB");
+  }
+
+  const mediaKind = getMediaKind(file.type, file.name);
+
+  if (!allowVideo && mediaKind === "video") {
+    throw new Error("当前二维码仅允许上传图片");
   }
 
   if (
@@ -271,6 +285,68 @@ function isThumbnailPathname(sourcePrefix: string, pathname: string) {
   return normalizeStoragePathname(pathname).startsWith(
     `${sourcePrefix}${THUMBNAIL_DIRECTORY}/`,
   );
+}
+
+function isVideoUpload(contentType: string | undefined, pathname: string) {
+  return getMediaKind(contentType, pathname) === "video";
+}
+
+async function countStoredMediaInPrefix(sourceId: string, prefix: string) {
+  const storageProvider = await getStorageProvider(sourceId);
+  const source = getStorageSource(sourceId);
+  const objects = await storageProvider.list({
+    prefix,
+    limit: MAX_STORAGE_LIST_LIMIT,
+  });
+
+  return objects.filter(
+    (object) => !isThumbnailPathname(source.prefix, object.pathname),
+  ).length;
+}
+
+async function assertUploadConstraints({
+  constraints,
+  contentType,
+  pathname,
+  sourceId,
+  sourcePrefix,
+}: {
+  constraints?: UploadConstraintOptions;
+  contentType?: string;
+  pathname: string;
+  sourceId: string;
+  sourcePrefix: string;
+}) {
+  const normalizedPathname = normalizeStoragePathname(pathname);
+  const isThumbnail = isThumbnailPathname(sourcePrefix, normalizedPathname);
+
+  if (
+    (constraints?.pathnamePrefix || constraints?.pathnamePrefixes) &&
+    ![
+      ...(constraints.pathnamePrefix ? [constraints.pathnamePrefix] : []),
+      ...(constraints.pathnamePrefixes ?? []),
+    ].some((prefix) => normalizedPathname.startsWith(prefix))
+  ) {
+    throw new Error("上传路径不属于当前二维码");
+  }
+
+  if (
+    constraints?.allowVideo === false &&
+    !isThumbnail &&
+    isVideoUpload(contentType, normalizedPathname)
+  ) {
+    throw new Error("当前二维码仅允许上传图片");
+  }
+
+  if (
+    constraints?.countPrefix &&
+    constraints.maxFiles &&
+    !isThumbnail &&
+    (await countStoredMediaInPrefix(sourceId, constraints.countPrefix)) >=
+      constraints.maxFiles
+  ) {
+    throw new Error(`当前二维码最多上传 ${constraints.maxFiles} 张`);
+  }
 }
 
 function getPathnameRelativeToPrefix(pathname: string, prefix: string) {
@@ -359,8 +435,9 @@ export async function saveUpload(
   file: File,
   sourceId?: string | null,
   requestedPathname?: string | null,
+  constraints?: UploadConstraintOptions,
 ) {
-  assertUploadFileAllowed(file);
+  assertUploadFileAllowed(file, constraints?.allowVideo !== false);
 
   const activeSourceId = await getActiveStorageSourceId(sourceId);
   const source = getStorageSource(activeSourceId);
@@ -381,6 +458,14 @@ export async function saveUpload(
   ) {
     throw new Error("缩略图路径仅支持图片文件");
   }
+
+  await assertUploadConstraints({
+    constraints,
+    contentType: file.type || undefined,
+    pathname,
+    sourceId: source.id,
+    sourcePrefix: source.prefix,
+  });
 
   const storedObject = await storageProvider.put(pathname, file, {
     access: getStorageAccess(source.id),
@@ -717,6 +802,7 @@ export async function handleUploadRequest(
   body: unknown,
   authorize: () => Promise<boolean>,
   sourceId?: string | null,
+  constraints?: UploadConstraintOptions,
 ) {
   const activeSourceId = await getActiveStorageSourceId(sourceId);
   const storageProvider = await getStorageProvider(activeSourceId);
@@ -735,12 +821,18 @@ export async function handleUploadRequest(
 
       const sourcePrefix = getStorageSource(activeSourceId).prefix;
       assertPathnameAllowed(pathname, sourcePrefix);
+      await assertUploadConstraints({
+        constraints,
+        pathname,
+        sourceId: activeSourceId,
+        sourcePrefix,
+      });
 
       return {
-        allowedContentTypes: getAllowedContentTypesForPathname(
-          sourcePrefix,
-          pathname,
-        ),
+        allowedContentTypes:
+          constraints?.allowVideo === false
+            ? ["image/*"]
+            : getAllowedContentTypesForPathname(sourcePrefix, pathname),
         addRandomSuffix: false,
         maximumSizeInBytes: MAX_UPLOAD_SIZE_IN_BYTES,
       };
@@ -756,6 +848,7 @@ export async function createDirectUpload(
   },
   authorize: () => Promise<boolean>,
   sourceId?: string | null,
+  constraints?: UploadConstraintOptions,
 ) {
   if (!(await authorize())) {
     throw new Error("未授权");
@@ -763,6 +856,10 @@ export async function createDirectUpload(
 
   if (options.size > MAX_UPLOAD_SIZE_IN_BYTES) {
     throw new Error("单文件大小不能超过 200MB");
+  }
+
+  if (constraints?.allowVideo === false && isVideoUpload(options.contentType, options.pathname)) {
+    throw new Error("当前二维码仅允许上传图片");
   }
 
   if (
@@ -783,6 +880,14 @@ export async function createDirectUpload(
   ) {
     throw new Error("缩略图路径仅支持图片文件");
   }
+
+  await assertUploadConstraints({
+    constraints,
+    contentType: options.contentType,
+    pathname,
+    sourceId: activeSourceId,
+    sourcePrefix: source.prefix,
+  });
 
   const storageProvider = await getStorageProvider(activeSourceId);
 

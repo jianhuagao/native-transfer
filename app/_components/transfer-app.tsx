@@ -22,18 +22,24 @@ import {
   ArrowsRightLeftIcon,
   CheckIcon,
   CircleStackIcon,
+  EyeIcon,
   LinkIcon,
+  PhotoIcon,
   PowerIcon,
+  QrCodeIcon,
+  StarIcon,
   TrashIcon,
   XMarkIcon,
 } from "@heroicons/react/24/solid";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import { QRCodeSVG } from "qrcode.react";
 import {
   memo,
   startTransition,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -73,12 +79,85 @@ const MEDIA_TILE_PRELOAD_MARGIN = "0px 0px 160px 0px";
 const QUICK_ACTION_PRESS_MS = 420;
 const QUICK_DELETE_CONFIRM_MS = 2400;
 const COPY_FEEDBACK_MS = 1400;
+const DEFAULT_PREVIEW_TITLE = "Native Transfer";
+const DEFAULT_SHARE_UPLOAD_OPTIONS = {
+  allowVideo: false,
+  expiresInMinutes: 10,
+  maxFiles: 10,
+};
+const PREVIEW_CONFIG_STORAGE_KEY = "native-transfer-preview-config:v1";
+const PREVIEW_TITLE_BASE_CLASS =
+  "text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl";
+const PREVIEW_TITLE_COLORS = [
+  { label: "白", value: "#ffffff" },
+  { label: "暖白", value: "#fff2dc" },
+  { label: "湖蓝", value: "#bdefff" },
+  { label: "金色", value: "#ffe08a" },
+  { label: "粉色", value: "#ffd1dc" },
+  { label: "墨色", value: "#111827" },
+];
+const PREVIEW_TITLE_FONT_SCALES = [
+  { label: "小", value: 0.86 },
+  { label: "默认", value: 1 },
+  { label: "大", value: 1.14 },
+  { label: "特大", value: 1.3 },
+];
+const PREVIEW_TITLE_SHADOW_LEVELS = [
+  { label: "无", value: 0 },
+  { label: "轻", value: 1 },
+  { label: "默认", value: 2 },
+  { label: "强", value: 3 },
+];
 
 type HeroBackdropState = {
   current: StoredImage | null;
   previous: StoredImage | null;
   ready: boolean;
   version: number;
+};
+
+type PreviewTitleStyle = {
+  color: string;
+  fontScale: number;
+  shadowLevel: number;
+  x: number;
+  y: number;
+};
+
+type PreviewConfig = {
+  backgroundKey: string;
+  enabled: boolean;
+  pinnedKeys: string[];
+  showUnpinned: boolean;
+  title: string;
+  titleStyle: PreviewTitleStyle;
+};
+
+type ShareUploadOptions = typeof DEFAULT_SHARE_UPLOAD_OPTIONS;
+
+type ShareUploadPayload = {
+  expiresAt: number;
+  maxFiles: number;
+  sourceLabel: string;
+  token: string;
+  url: string;
+};
+
+const DEFAULT_PREVIEW_TITLE_STYLE: PreviewTitleStyle = {
+  color: "#ffffff",
+  fontScale: 1,
+  shadowLevel: 2,
+  x: 0,
+  y: 0,
+};
+
+const DEFAULT_PREVIEW_CONFIG: PreviewConfig = {
+  backgroundKey: "",
+  enabled: false,
+  pinnedKeys: [],
+  showUnpinned: true,
+  title: DEFAULT_PREVIEW_TITLE,
+  titleStyle: DEFAULT_PREVIEW_TITLE_STYLE,
 };
 
 function pickLatestHeroImage(images: StoredImage[]) {
@@ -91,6 +170,91 @@ function getImageIdentity(image: StoredImage | null) {
 
 function getStoredImageKey(image: StoredImage) {
   return `${image.sourceId}:${image.id}`;
+}
+
+function sanitizePreviewTitleStyle(
+  titleStyle: Partial<PreviewTitleStyle> | undefined,
+) {
+  const color =
+    typeof titleStyle?.color === "string" &&
+    PREVIEW_TITLE_COLORS.some((item) => item.value === titleStyle.color)
+      ? titleStyle.color
+      : DEFAULT_PREVIEW_TITLE_STYLE.color;
+  const fontScale =
+    typeof titleStyle?.fontScale === "number" &&
+    Number.isFinite(titleStyle.fontScale)
+      ? Math.min(1.6, Math.max(0.72, titleStyle.fontScale))
+      : DEFAULT_PREVIEW_TITLE_STYLE.fontScale;
+  const shadowLevel =
+    typeof titleStyle?.shadowLevel === "number" &&
+    Number.isFinite(titleStyle.shadowLevel)
+      ? Math.min(3, Math.max(0, Math.round(titleStyle.shadowLevel)))
+      : DEFAULT_PREVIEW_TITLE_STYLE.shadowLevel;
+  const x =
+    typeof titleStyle?.x === "number" && Number.isFinite(titleStyle.x)
+      ? titleStyle.x
+      : DEFAULT_PREVIEW_TITLE_STYLE.x;
+  const y =
+    typeof titleStyle?.y === "number" && Number.isFinite(titleStyle.y)
+      ? titleStyle.y
+      : DEFAULT_PREVIEW_TITLE_STYLE.y;
+
+  return {
+    color,
+    fontScale,
+    shadowLevel,
+    x,
+    y,
+  };
+}
+
+function getPreviewTitleFilter(shadowLevel: number) {
+  if (shadowLevel <= 0) {
+    return "none";
+  }
+
+  if (shadowLevel === 1) {
+    return "drop-shadow(0 6px 16px rgba(0,0,0,0.36))";
+  }
+
+  if (shadowLevel >= 3) {
+    return "drop-shadow(0 14px 42px rgba(0,0,0,0.68))";
+  }
+
+  return "drop-shadow(0 10px 30px rgba(0,0,0,0.5))";
+}
+
+function loadPreviewConfig() {
+  if (typeof window === "undefined") {
+    return DEFAULT_PREVIEW_CONFIG;
+  }
+
+  try {
+    const storedConfig = window.localStorage.getItem(PREVIEW_CONFIG_STORAGE_KEY);
+
+    if (!storedConfig) {
+      return DEFAULT_PREVIEW_CONFIG;
+    }
+
+    const parsed = JSON.parse(storedConfig) as Partial<PreviewConfig>;
+
+    return {
+      backgroundKey:
+        typeof parsed.backgroundKey === "string" ? parsed.backgroundKey : "",
+      enabled: parsed.enabled === true,
+      pinnedKeys: Array.isArray(parsed.pinnedKeys)
+        ? parsed.pinnedKeys.filter((key) => typeof key === "string")
+        : [],
+      showUnpinned: parsed.showUnpinned !== false,
+      title:
+        typeof parsed.title === "string" && parsed.title.trim()
+          ? parsed.title.trim()
+          : DEFAULT_PREVIEW_TITLE,
+      titleStyle: sanitizePreviewTitleStyle(parsed.titleStyle),
+    };
+  } catch {
+    return DEFAULT_PREVIEW_CONFIG;
+  }
 }
 
 function isSameImage(left: StoredImage | null, right: StoredImage | null) {
@@ -189,6 +353,451 @@ function StorageSourceSelect({
   );
 }
 
+function PreviewSettingsDialog({
+  backgroundSelected,
+  pinnedCount,
+  showUnpinned,
+  title,
+  titleStyle,
+  onClearBackground,
+  onClearPinned,
+  onClose,
+  onExitPreview,
+  onSaveTitle,
+  onSetShowUnpinned,
+  onUpdateTitleStyle,
+}: {
+  backgroundSelected: boolean;
+  pinnedCount: number;
+  showUnpinned: boolean;
+  title: string;
+  titleStyle: PreviewTitleStyle;
+  onClearBackground: () => void;
+  onClearPinned: () => void;
+  onClose: () => void;
+  onExitPreview: () => void;
+  onSaveTitle: (title: string) => void;
+  onSetShowUnpinned: (showUnpinned: boolean) => void;
+  onUpdateTitleStyle: (titleStyle: Partial<PreviewTitleStyle>) => void;
+}) {
+  const [draftTitle, setDraftTitle] = useState(title);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSaveTitle(draftTitle.trim() || DEFAULT_PREVIEW_TITLE);
+    onClose();
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/62 p-4 backdrop-blur-xl"
+      onClick={onClose}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="预览模式设置"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[26px] border border-white/12 bg-[#080b12]/96 p-4 shadow-[0_30px_100px_rgba(0,0,0,0.62)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">预览模式</h2>
+            <p className="mt-1 text-sm text-white/52">
+              调整展示标题、置顶范围和标题样式。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/68 transition hover:bg-white/10 hover:text-white"
+            aria-label="关闭"
+            title="关闭"
+          >
+            <XMarkIcon className="size-5" />
+          </button>
+        </div>
+
+        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/48">
+              展示标题
+            </span>
+            <input
+              value={draftTitle}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              className="h-11 w-full rounded-2xl border border-white/10 bg-black/28 px-3 text-sm font-medium text-white outline-none transition placeholder:text-white/28 focus:border-cyan-200/48"
+              placeholder="例如：成都之旅"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={() => onSetShowUnpinned(!showUnpinned)}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/7 px-3 py-3 text-left transition hover:bg-white/12"
+          >
+            <span>
+              <span className="block text-sm font-medium text-white">
+                显示非置顶照片
+              </span>
+              <span className="mt-1 block text-xs text-white/45">
+                开启后，置顶照片优先显示，其余照片继续跟在后面。
+              </span>
+            </span>
+            <span
+              className={`relative h-6 w-11 shrink-0 rounded-full border transition ${
+                showUnpinned
+                  ? "border-cyan-100/36 bg-cyan-100/28"
+                  : "border-white/12 bg-black/32"
+              }`}
+              aria-hidden
+            >
+              <span
+                className={`absolute top-1 size-4 rounded-full bg-white transition ${
+                  showUnpinned ? "left-6" : "left-1"
+                }`}
+              />
+            </span>
+          </button>
+
+          <div className="space-y-3 rounded-2xl border border-white/10 bg-white/6 p-3">
+            <div>
+              <span className="block text-xs font-medium text-white/48">
+                标题颜色
+              </span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {PREVIEW_TITLE_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    onClick={() => onUpdateTitleStyle({ color: color.value })}
+                    className={`size-8 rounded-full border transition ${
+                      titleStyle.color === color.value
+                        ? "border-white ring-2 ring-white/28"
+                        : "border-white/18 hover:border-white/55"
+                    }`}
+                    style={{ backgroundColor: color.value }}
+                    aria-label={`标题颜色：${color.label}`}
+                    title={color.label}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span className="block text-xs font-medium text-white/48">
+                字体大小
+              </span>
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {PREVIEW_TITLE_FONT_SCALES.map((scale) => (
+                  <button
+                    key={scale.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateTitleStyle({ fontScale: scale.value })
+                    }
+                    className={`h-9 rounded-full border text-xs font-medium transition ${
+                      titleStyle.fontScale === scale.value
+                        ? "border-white/72 bg-white text-slate-950"
+                        : "border-white/10 bg-black/22 text-white/66 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {scale.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span className="block text-xs font-medium text-white/48">
+                阴影大小
+              </span>
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {PREVIEW_TITLE_SHADOW_LEVELS.map((shadow) => (
+                  <button
+                    key={shadow.value}
+                    type="button"
+                    onClick={() =>
+                      onUpdateTitleStyle({ shadowLevel: shadow.value })
+                    }
+                    className={`h-9 rounded-full border text-xs font-medium transition ${
+                      titleStyle.shadowLevel === shadow.value
+                        ? "border-white/72 bg-white text-slate-950"
+                        : "border-white/10 bg-black/22 text-white/66 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {shadow.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onUpdateTitleStyle({ x: 0, y: 0 })}
+              disabled={titleStyle.x === 0 && titleStyle.y === 0}
+              className="h-9 w-full rounded-full border border-white/10 bg-black/20 text-xs font-medium text-white/66 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              重置标题位置
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onClearPinned}
+              disabled={pinnedCount === 0}
+              className="rounded-2xl border border-white/10 bg-white/7 px-3 py-3 text-left text-sm text-white/72 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <span className="block font-medium text-white">清空置顶</span>
+              <span className="mt-1 block text-xs text-white/45">
+                已置顶 {pinnedCount} 张
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onClearBackground}
+              disabled={!backgroundSelected}
+              className="rounded-2xl border border-white/10 bg-white/7 px-3 py-3 text-left text-sm text-white/72 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <span className="block font-medium text-white">取消背景</span>
+              <span className="mt-1 block text-xs text-white/45">
+                {backgroundSelected ? "已设置背景" : "未设置背景"}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+            <button
+              type="submit"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-white px-4 text-sm font-semibold text-slate-950 transition hover:brightness-105"
+            >
+              保存标题
+            </button>
+            <button
+              type="button"
+              onClick={onExitPreview}
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-white/12 bg-white/7 px-4 text-sm font-semibold text-white/78 transition hover:bg-white/12 hover:text-white"
+            >
+              退出预览模式
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function ShareUploadDialog({
+  draft,
+  error,
+  loading,
+  payload,
+  onClose,
+  onCopyLink,
+  onRegenerate,
+  onUpdateDraft,
+}: {
+  draft: ShareUploadOptions;
+  error: string;
+  loading: boolean;
+  payload: ShareUploadPayload | null;
+  onClose: () => void;
+  onCopyLink: () => void;
+  onRegenerate: () => void;
+  onUpdateDraft: (draft: ShareUploadOptions) => void;
+}) {
+  const expiresAtLabel = payload
+    ? new Intl.DateTimeFormat("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).format(new Date(payload.expiresAt))
+    : "";
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onRegenerate();
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/62 p-4 backdrop-blur-xl"
+      onClick={onClose}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="分享上传二维码"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-[26px] border border-white/12 bg-[#080b12]/96 p-4 shadow-[0_30px_100px_rgba(0,0,0,0.62)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">扫码上传</h2>
+            <p className="mt-1 text-sm text-white/52">
+              {payload
+                ? `${payload.sourceLabel} · 有效至 ${expiresAtLabel} · 最多 ${payload.maxFiles} 张`
+                : "正在生成二维码"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-white/68 transition hover:bg-white/10 hover:text-white"
+            aria-label="关闭"
+            title="关闭"
+          >
+            <XMarkIcon className="size-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 flex min-h-72 items-center justify-center rounded-3xl border border-white/10 bg-white p-4">
+          {payload ? (
+            <QRCodeSVG value={payload.url} size={248} marginSize={2} />
+          ) : (
+            <ArrowPathIcon className="size-7 animate-spin text-slate-950" />
+          )}
+        </div>
+
+        {error ? (
+          <p className="mt-3 rounded-2xl border border-rose-300/18 bg-rose-950/35 px-3 py-2 text-sm text-rose-100">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCopyLink}
+            disabled={!payload}
+            className="inline-flex h-10 items-center justify-center rounded-full border border-white/12 bg-white/7 px-3 text-sm font-medium text-white/74 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <LinkIcon className="mr-1.5 size-4" />
+            复制链接
+          </button>
+          <button
+            type="button"
+            onClick={onRegenerate}
+            disabled={loading}
+            className="inline-flex h-10 items-center justify-center rounded-full bg-white px-3 text-sm font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65"
+          >
+            <ArrowPathIcon
+              className={`mr-1.5 size-4 ${loading ? "animate-spin" : ""}`}
+            />
+            重新生成
+          </button>
+        </div>
+
+        <details className="mt-3 rounded-2xl border border-white/10 bg-white/6 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-white/78">
+            高级
+          </summary>
+          <form className="mt-3 space-y-3" onSubmit={handleSubmit}>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/48">
+                生效时间（分钟）
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={draft.expiresInMinutes}
+                onChange={(event) =>
+                  onUpdateDraft({
+                    ...draft,
+                    expiresInMinutes: Number(event.target.value),
+                  })
+                }
+                className="h-10 w-full rounded-2xl border border-white/10 bg-black/28 px-3 text-sm font-medium text-white outline-none transition focus:border-cyan-200/48"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/48">
+                上传图片限制
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={draft.maxFiles}
+                onChange={(event) =>
+                  onUpdateDraft({
+                    ...draft,
+                    maxFiles: Number(event.target.value),
+                  })
+                }
+                className="h-10 w-full rounded-2xl border border-white/10 bg-black/28 px-3 text-sm font-medium text-white outline-none transition focus:border-cyan-200/48"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateDraft({ ...draft, allowVideo: !draft.allowVideo })
+              }
+              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 text-left transition hover:bg-white/10"
+            >
+              <span className="text-sm font-medium text-white/78">
+                允许上传视频
+              </span>
+              <span
+                className={`relative h-6 w-11 shrink-0 rounded-full border transition ${
+                  draft.allowVideo
+                    ? "border-cyan-100/36 bg-cyan-100/28"
+                    : "border-white/12 bg-black/32"
+                }`}
+                aria-hidden
+              >
+                <span
+                  className={`absolute top-1 size-4 rounded-full bg-white transition ${
+                    draft.allowVideo ? "left-6" : "left-1"
+                  }`}
+                />
+              </span>
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-10 w-full rounded-full bg-white px-4 text-sm font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65"
+            >
+              应用并重新生成
+            </button>
+          </form>
+        </details>
+      </section>
+    </div>
+  );
+}
+
 function useInViewOnce<TElement extends Element>(
   rootMargin = MEDIA_TILE_PRELOAD_MARGIN,
 ) {
@@ -233,6 +842,7 @@ function useInViewOnce<TElement extends Element>(
 
 const MediaTile = memo(function MediaTile({
   active,
+  backgroundSelected,
   copied,
   deleteConfirming,
   deleting,
@@ -243,8 +853,13 @@ const MediaTile = memo(function MediaTile({
   onDeleteImage,
   onDownloadImage,
   onOpenImage,
+  onSetPreviewBackground,
+  onTogglePreviewPin,
+  pinned,
+  previewMode,
 }: {
   active: boolean;
+  backgroundSelected: boolean;
   copied: boolean;
   deleteConfirming: boolean;
   deleting: boolean;
@@ -255,6 +870,10 @@ const MediaTile = memo(function MediaTile({
   onDeleteImage: (image: StoredImage) => void;
   onDownloadImage: (image: StoredImage) => void;
   onOpenImage: (image: StoredImage) => void;
+  onSetPreviewBackground: (image: StoredImage) => void;
+  onTogglePreviewPin: (image: StoredImage) => void;
+  pinned: boolean;
+  previewMode: boolean;
 }) {
   const { elementRef, inView } = useInViewOnce<HTMLDivElement>();
   const longPressTimerRef = useRef<number | null>(null);
@@ -364,48 +983,88 @@ const MediaTile = memo(function MediaTile({
             : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
         }`}
       >
-        <button
-          type="button"
-          onClick={(event) => runQuickAction(event, onCopyImage)}
-          title={copied ? "已复制" : "复制链接"}
-          aria-label={`${copied ? "已复制" : "复制链接"} ${image.name}`}
-          className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
-        >
-          {copied ? (
-            <CheckIcon className="size-4 text-emerald-200" />
-          ) : (
-            <LinkIcon className="size-4" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={(event) => runQuickAction(event, onDownloadImage)}
-          title="下载原图"
-          aria-label={`下载 ${image.name}`}
-          className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
-        >
-          <ArrowDownOnSquareIcon className="size-4" />
-        </button>
-        <button
-          type="button"
-          disabled={deleting}
-          onClick={(event) => runQuickAction(event, onDeleteImage)}
-          title={deleteConfirming ? "再次点击确认删除" : "删除"}
-          aria-label={`${deleteConfirming ? "确认删除" : "删除"} ${image.name}`}
-          className={`flex h-8 items-center justify-center rounded-full border shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition disabled:cursor-not-allowed disabled:opacity-60 ${
-            deleteConfirming
-              ? "w-14 border-rose-200/28 bg-rose-400/24 px-2 text-[11px] font-medium text-rose-50"
-              : "w-8 border-white/12 bg-black/46 text-rose-100 hover:bg-rose-400/18"
-          }`}
-        >
-          {deleting ? (
-            <ArrowPathIcon className="size-4 animate-spin" />
-          ) : deleteConfirming ? (
-            "确认"
-          ) : (
-            <TrashIcon className="size-4" />
-          )}
-        </button>
+        {previewMode ? (
+          <>
+            <button
+              type="button"
+              onClick={(event) => runQuickAction(event, onTogglePreviewPin)}
+              title={pinned ? "取消置顶" : "置顶展示"}
+              aria-label={`${pinned ? "取消置顶" : "置顶展示"} ${image.name}`}
+              className={`flex size-8 items-center justify-center rounded-full border shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16 ${
+                pinned
+                  ? "border-amber-100/38 bg-amber-100/22 text-amber-50"
+                  : "border-white/12 bg-black/46 text-white"
+              }`}
+            >
+              <StarIcon className="size-4" />
+            </button>
+            <button
+              type="button"
+              disabled={image.mediaType !== "image"}
+              onClick={(event) => runQuickAction(event, onSetPreviewBackground)}
+              title={
+                image.mediaType === "image"
+                  ? backgroundSelected
+                    ? "取消背景"
+                    : "设为背景"
+                  : "视频不能设为背景"
+              }
+              aria-label={`${backgroundSelected ? "取消背景" : "设为背景"} ${image.name}`}
+              className={`flex size-8 items-center justify-center rounded-full border shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45 ${
+                backgroundSelected
+                  ? "border-cyan-100/42 bg-cyan-100/22 text-cyan-50"
+                  : "border-white/12 bg-black/46 text-white"
+              }`}
+            >
+              <PhotoIcon className="size-4" />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={(event) => runQuickAction(event, onCopyImage)}
+              title={copied ? "已复制" : "复制链接"}
+              aria-label={`${copied ? "已复制" : "复制链接"} ${image.name}`}
+              className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
+            >
+              {copied ? (
+                <CheckIcon className="size-4 text-emerald-200" />
+              ) : (
+                <LinkIcon className="size-4" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={(event) => runQuickAction(event, onDownloadImage)}
+              title="下载原图"
+              aria-label={`下载 ${image.name}`}
+              className="flex size-8 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition hover:bg-white/16"
+            >
+              <ArrowDownOnSquareIcon className="size-4" />
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={(event) => runQuickAction(event, onDeleteImage)}
+              title={deleteConfirming ? "再次点击确认删除" : "删除"}
+              aria-label={`${deleteConfirming ? "确认删除" : "删除"} ${image.name}`}
+              className={`flex h-8 items-center justify-center rounded-full border shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                deleteConfirming
+                  ? "w-14 border-rose-200/28 bg-rose-400/24 px-2 text-[11px] font-medium text-rose-50"
+                  : "w-8 border-white/12 bg-black/46 text-rose-100 hover:bg-rose-400/18"
+              }`}
+            >
+              {deleting ? (
+                <ArrowPathIcon className="size-4 animate-spin" />
+              ) : deleteConfirming ? (
+                "确认"
+              ) : (
+                <TrashIcon className="size-4" />
+              )}
+            </button>
+          </>
+        )}
         {active ? (
           <button
             type="button"
@@ -425,7 +1084,21 @@ const MediaTile = memo(function MediaTile({
 
       {active ? (
         <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-full border border-white/10 bg-black/42 px-3 py-1.5 text-xs font-medium text-white/72 backdrop-blur-md sm:hidden">
-          已选择，可复制、下载或删除
+          {previewMode ? "已选择，可置顶或设背景" : "已选择，可复制、下载或删除"}
+        </div>
+      ) : null}
+      {previewMode && (pinned || backgroundSelected) ? (
+        <div className="pointer-events-none absolute bottom-2 left-2 hidden gap-1 sm:flex">
+          {pinned ? (
+            <span className="flex size-7 items-center justify-center rounded-full border border-amber-100/24 bg-black/42 text-amber-50 backdrop-blur-md">
+              <StarIcon className="size-3.5" />
+            </span>
+          ) : null}
+          {backgroundSelected ? (
+            <span className="flex size-7 items-center justify-center rounded-full border border-cyan-100/24 bg-black/42 text-cyan-50 backdrop-blur-md">
+              <PhotoIcon className="size-3.5" />
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -446,6 +1119,7 @@ function MediaSkeletonGrid({ count }: { count: number }) {
 }
 
 const MediaShelf = memo(function MediaShelf({
+  backgroundImageKey,
   deletingId,
   hasMore,
   historyLoading,
@@ -456,7 +1130,12 @@ const MediaShelf = memo(function MediaShelf({
   onDownloadImage,
   onLoadMore,
   onOpenImage,
+  onSetPreviewBackground,
+  onTogglePreviewPin,
+  pinnedImageKeys,
+  previewMode,
 }: {
+  backgroundImageKey: string;
   deletingId: string | null;
   hasMore: boolean;
   historyLoading: boolean;
@@ -467,6 +1146,10 @@ const MediaShelf = memo(function MediaShelf({
   onDownloadImage: (image: StoredImage) => void;
   onLoadMore: () => void;
   onOpenImage: (image: StoredImage) => void;
+  onSetPreviewBackground: (image: StoredImage) => void;
+  onTogglePreviewPin: (image: StoredImage) => void;
+  pinnedImageKeys: Set<string>;
+  previewMode: boolean;
 }) {
   const [activeQuickActionKey, setActiveQuickActionKey] = useState("");
   const [copiedImageKey, setCopiedImageKey] = useState("");
@@ -558,6 +1241,9 @@ const MediaShelf = memo(function MediaShelf({
                     <MediaTile
                       key={image.id}
                       active={activeQuickActionKey === getStoredImageKey(image)}
+                      backgroundSelected={
+                        backgroundImageKey === getStoredImageKey(image)
+                      }
                       copied={copiedImageKey === getStoredImageKey(image)}
                       deleteConfirming={
                         deleteConfirmKey === getStoredImageKey(image)
@@ -574,6 +1260,10 @@ const MediaShelf = memo(function MediaShelf({
                       }}
                       onDownloadImage={onDownloadImage}
                       onOpenImage={onOpenImage}
+                      onSetPreviewBackground={onSetPreviewBackground}
+                      onTogglePreviewPin={onTogglePreviewPin}
+                      pinned={pinnedImageKeys.has(getStoredImageKey(image))}
+                      previewMode={previewMode}
                     />
                   ))}
                 </div>
@@ -749,10 +1439,73 @@ function TransferAppContent({
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareDraft, setShareDraft] = useState<ShareUploadOptions>(
+    DEFAULT_SHARE_UPLOAD_OPTIONS,
+  );
+  const [sharePayload, setSharePayload] =
+    useState<ShareUploadPayload | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState("");
   const [uploadQueueVisible, setUploadQueueVisible] = useState(false);
+  const [previewConfig, setPreviewConfig] =
+    useState<PreviewConfig>(loadPreviewConfig);
+  const [previewSettingsOpen, setPreviewSettingsOpen] = useState(false);
   const [backgroundBlurred, setBackgroundBlurred] = useState(false);
   const delayedHeroUpdateRef = useRef<number | null>(null);
+  const previewTitleDragRef = useRef<{
+    initialX: number;
+    initialY: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const previewTitleDraggedRef = useRef(false);
   const activeSource = sources.find((source) => source.id === activeSourceId);
+  const imageByKey = useMemo(() => {
+    return new Map(images.map((image) => [getStoredImageKey(image), image]));
+  }, [images]);
+  const pinnedImageKeys = useMemo(() => {
+    return new Set(previewConfig.pinnedKeys);
+  }, [previewConfig.pinnedKeys]);
+  const previewBackgroundImage = previewConfig.backgroundKey
+    ? imageByKey.get(previewConfig.backgroundKey) ?? null
+    : null;
+  const previewImages = useMemo(() => {
+    if (!previewConfig.enabled || previewConfig.pinnedKeys.length === 0) {
+      return images;
+    }
+
+    const pinnedImages = previewConfig.pinnedKeys
+      .map((imageKey) => imageByKey.get(imageKey))
+      .filter((image): image is StoredImage => Boolean(image));
+
+    if (!previewConfig.showUnpinned) {
+      return pinnedImages;
+    }
+
+    return [
+      ...pinnedImages,
+      ...images.filter((image) => !pinnedImageKeys.has(getStoredImageKey(image))),
+    ];
+  }, [
+    imageByKey,
+    images,
+    pinnedImageKeys,
+    previewConfig.enabled,
+    previewConfig.pinnedKeys,
+    previewConfig.showUnpinned,
+  ]);
+  const displayTitle = previewConfig.enabled
+    ? previewConfig.title || DEFAULT_PREVIEW_TITLE
+    : DEFAULT_PREVIEW_TITLE;
+  const previewTitleStyle = previewConfig.titleStyle;
+  const previewTitleInlineStyle: React.CSSProperties = {
+    color: previewTitleStyle.color,
+    filter: getPreviewTitleFilter(previewTitleStyle.shadowLevel),
+    transform: `translate3d(${previewTitleStyle.x}px, ${previewTitleStyle.y}px, 0) scale(${previewTitleStyle.fontScale})`,
+    transformOrigin: "left center",
+  };
 
   const cancelDelayedHeroUpdate = useCallback(() => {
     if (delayedHeroUpdateRef.current === null) {
@@ -921,6 +1674,13 @@ function TransferAppContent({
   }, []);
 
   useEffect(() => {
+    window.localStorage.setItem(
+      PREVIEW_CONFIG_STORAGE_KEY,
+      JSON.stringify(previewConfig),
+    );
+  }, [previewConfig]);
+
+  useEffect(() => {
     if (!authorized || !needsInitialFetch) {
       return;
     }
@@ -991,6 +1751,160 @@ function TransferAppContent({
       window.removeEventListener("resize", syncBackgroundState);
     };
   }, [authorized]);
+
+  function updatePreviewConfig(
+    updater: (currentConfig: PreviewConfig) => PreviewConfig,
+  ) {
+    setPreviewConfig((currentConfig) => updater(currentConfig));
+  }
+
+  function enterPreviewMode() {
+    setTransferModalOpen(false);
+    setSelectedImage(null);
+    setUploadQueueVisible(false);
+    setPreviewSettingsOpen(false);
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      enabled: true,
+      title: currentConfig.title.trim() || DEFAULT_PREVIEW_TITLE,
+    }));
+  }
+
+  function exitPreviewMode() {
+    setPreviewSettingsOpen(false);
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      enabled: false,
+    }));
+  }
+
+  function savePreviewTitle(title: string) {
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      title: title.trim() || DEFAULT_PREVIEW_TITLE,
+    }));
+  }
+
+  function setPreviewShowUnpinned(showUnpinned: boolean) {
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      showUnpinned,
+    }));
+  }
+
+  function updatePreviewTitleStyle(titleStyle: Partial<PreviewTitleStyle>) {
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      titleStyle: sanitizePreviewTitleStyle({
+        ...currentConfig.titleStyle,
+        ...titleStyle,
+      }),
+    }));
+  }
+
+  function handlePreviewTitlePointerDown(
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    previewTitleDraggedRef.current = false;
+    previewTitleDragRef.current = {
+      initialX: previewConfig.titleStyle.x,
+      initialY: previewConfig.titleStyle.y,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePreviewTitlePointerMove(
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    const dragState = previewTitleDragRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+
+    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+      previewTitleDraggedRef.current = true;
+    }
+
+    updatePreviewTitleStyle({
+      x: dragState.initialX + deltaX,
+      y: dragState.initialY + deltaY,
+    });
+  }
+
+  function handlePreviewTitlePointerEnd(
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    if (previewTitleDragRef.current?.pointerId === event.pointerId) {
+      previewTitleDragRef.current = null;
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handlePreviewTitleClick() {
+    if (previewTitleDraggedRef.current) {
+      previewTitleDraggedRef.current = false;
+      return;
+    }
+
+    setPreviewSettingsOpen(true);
+  }
+
+  function togglePreviewPin(image: StoredImage) {
+    const imageKey = getStoredImageKey(image);
+
+    updatePreviewConfig((currentConfig) => {
+      const pinnedKeys = currentConfig.pinnedKeys.includes(imageKey)
+        ? currentConfig.pinnedKeys.filter((key) => key !== imageKey)
+        : [imageKey, ...currentConfig.pinnedKeys];
+
+      return {
+        ...currentConfig,
+        pinnedKeys,
+      };
+    });
+  }
+
+  function togglePreviewBackground(image: StoredImage) {
+    if (image.mediaType !== "image") {
+      return;
+    }
+
+    const imageKey = getStoredImageKey(image);
+
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      backgroundKey:
+        currentConfig.backgroundKey === imageKey ? "" : imageKey,
+    }));
+  }
+
+  function clearPreviewPinnedImages() {
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      pinnedKeys: [],
+    }));
+  }
+
+  function clearPreviewBackground() {
+    updatePreviewConfig((currentConfig) => ({
+      ...currentConfig,
+      backgroundKey: "",
+    }));
+  }
 
   async function handleLogin(password: string) {
     setAuthNotice("");
@@ -1141,6 +2055,64 @@ function TransferAppContent({
     }
   }
 
+  async function generateShareUploadQr(options: ShareUploadOptions = shareDraft) {
+    if (!activeSourceId || shareLoading) {
+      return;
+    }
+
+    setShareLoading(true);
+    setShareError("");
+
+    try {
+      const response = await fetch("/api/share-upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          allowVideo: options.allowVideo,
+          expiresInMinutes: options.expiresInMinutes,
+          maxFiles: options.maxFiles,
+          sourceId: activeSourceId,
+        }),
+      });
+
+      const payload = (await response.json()) as
+        | ShareUploadPayload
+        | { error?: string };
+
+      if (!response.ok || !("url" in payload)) {
+        const errorPayload = payload as { error?: string };
+        throw new Error(errorPayload.error || "生成二维码失败");
+      }
+
+      setSharePayload(payload);
+    } catch (error) {
+      setSharePayload(null);
+      setShareError(error instanceof Error ? error.message : "生成二维码失败");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  function openShareUploadDialog() {
+    setShareDraft(DEFAULT_SHARE_UPLOAD_OPTIONS);
+    setShareDialogOpen(true);
+    void generateShareUploadQr(DEFAULT_SHARE_UPLOAD_OPTIONS);
+  }
+
+  async function copyShareUploadLink() {
+    if (!sharePayload) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(sharePayload.url);
+    } catch {
+      window.prompt("复制链接", sharePayload.url);
+    }
+  }
+
   async function handleDelete(image: StoredImage) {
     setDeletingId(image.id);
 
@@ -1161,6 +2133,18 @@ function TransferAppContent({
           );
         }),
       );
+      updatePreviewConfig((currentConfig) => {
+        const imageKey = getStoredImageKey(image);
+
+        return {
+          ...currentConfig,
+          backgroundKey:
+            currentConfig.backgroundKey === imageKey
+              ? ""
+              : currentConfig.backgroundKey,
+          pinnedKeys: currentConfig.pinnedKeys.filter((key) => key !== imageKey),
+        };
+      });
       setStorageUsage((currentUsage) => removeImageFromUsage(currentUsage, image));
       setHeroBackdrop((state) => {
         const deletingCurrent = isSameImage(state.current, image);
@@ -1239,57 +2223,78 @@ function TransferAppContent({
     <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
       <HeroBackdrop
         blurred={backgroundBlurred}
-        currentHero={heroBackdrop.current}
-        currentReady={heroBackdrop.ready}
+        currentHero={previewBackgroundImage ?? heroBackdrop.current}
+        currentReady={previewBackgroundImage ? true : heroBackdrop.ready}
         onCurrentHeroLoad={handleHeroImageLoad}
         previousHero={heroBackdrop.previous}
       />
 
-      <div className="absolute left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
-        <div className="flex min-w-0 items-center gap-2 sm:contents">
-          <StorageSourceSelect
-            activeSourceId={activeSourceId}
-            disabled={switchingSource || historyLoading}
-            sources={sources}
-            onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
-          />
-          <StorageUsageBadge usage={storageUsage} />
-        </div>
-        <div className="flex justify-end gap-2 sm:contents">
-          {sources.length > 1 ? (
+      {!previewConfig.enabled ? (
+        <div className="absolute left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
+          <div className="flex min-w-0 items-center gap-2 sm:contents">
+            <StorageSourceSelect
+              activeSourceId={activeSourceId}
+              disabled={switchingSource || historyLoading}
+              sources={sources}
+              onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
+            />
+            <StorageUsageBadge usage={storageUsage} />
+          </div>
+          <div className="flex justify-end gap-2 sm:contents">
             <button
               type="button"
-              onClick={() => setTransferModalOpen(true)}
-              aria-label="迁移媒体"
-              title="迁移媒体"
+              onClick={openShareUploadDialog}
+              disabled={!activeSourceId || historyLoading}
+              aria-label="生成上传二维码"
+              title="生成上传二维码"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              <QrCodeIcon className="size-5" />
+            </button>
+            <button
+              type="button"
+              onClick={enterPreviewMode}
+              aria-label="进入预览模式"
+              title="进入预览模式"
               className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
             >
-              <ArrowsRightLeftIcon className="size-5" />
+              <EyeIcon className="size-5" />
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void handleRefreshImages()}
-            disabled={refreshingImages}
-            aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
-            title={refreshingImages ? "刷新中" : "刷新媒体库"}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
-          >
-            <ArrowPathIcon
-              className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
-            />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            aria-label="退出登录"
-            title="退出登录"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
-          >
-            <PowerIcon className="size-5" />
-          </button>
+            {sources.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => setTransferModalOpen(true)}
+                aria-label="迁移媒体"
+                title="迁移媒体"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
+              >
+                <ArrowsRightLeftIcon className="size-5" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void handleRefreshImages()}
+              disabled={refreshingImages}
+              aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
+              title={refreshingImages ? "刷新中" : "刷新媒体库"}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              <ArrowPathIcon
+                className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              aria-label="退出登录"
+              title="退出登录"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
+            >
+              <PowerIcon className="size-5" />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <section
         className={`relative z-10 flex transition-[height,min-height] duration-300 ${
@@ -1298,19 +2303,36 @@ function TransferAppContent({
       >
         <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
           <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
-            <h1 className="text-4xl font-semibold leading-none text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:text-6xl lg:text-7xl">
-              Native Transfer
-            </h1>
-            <div className="relative z-40 mt-14">
-              <TransferUploadPanel
-                onQueueVisibilityChange={setUploadQueueVisible}
-                onUploaded={refreshImages}
-                sourceId={activeSourceId}
-                sourcePrefix={activeSource?.prefix ?? "uploads/"}
-                uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
-              />
-            </div>
-            {pageError ? (
+            {previewConfig.enabled ? (
+              <button
+                type="button"
+                onClick={handlePreviewTitleClick}
+                onPointerDown={handlePreviewTitlePointerDown}
+                onPointerMove={handlePreviewTitlePointerMove}
+                onPointerUp={handlePreviewTitlePointerEnd}
+                onPointerCancel={handlePreviewTitlePointerEnd}
+                className={`${PREVIEW_TITLE_BASE_CLASS} inline-block cursor-grab select-none text-left transition hover:opacity-90 active:cursor-grabbing focus-visible:outline focus-visible:outline-white/70 [touch-action:none]`}
+                style={previewTitleInlineStyle}
+              >
+                {displayTitle}
+              </button>
+            ) : (
+              <h1 className={PREVIEW_TITLE_BASE_CLASS}>
+                {displayTitle}
+              </h1>
+            )}
+            {!previewConfig.enabled ? (
+              <div className="relative z-40 mt-14">
+                <TransferUploadPanel
+                  onQueueVisibilityChange={setUploadQueueVisible}
+                  onUploaded={refreshImages}
+                  sourceId={activeSourceId}
+                  sourcePrefix={activeSource?.prefix ?? "uploads/"}
+                  uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
+                />
+              </div>
+            ) : null}
+            {pageError && !previewConfig.enabled ? (
               <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
                 {pageError}
               </p>
@@ -1320,16 +2342,27 @@ function TransferAppContent({
       </section>
 
       <MediaShelf
+        backgroundImageKey={previewConfig.backgroundKey}
         deletingId={deletingId}
-        hasMore={hasMoreImages}
+        hasMore={
+          previewConfig.enabled &&
+          previewConfig.pinnedKeys.length > 0 &&
+          !previewConfig.showUnpinned
+            ? false
+            : hasMoreImages
+        }
         historyLoading={historyLoading}
-        images={images}
+        images={previewImages}
         loadingMore={loadingMoreImages}
         onCopyImage={handleCopyLink}
         onDeleteImage={handleDelete}
         onDownloadImage={handleDownload}
         onLoadMore={() => void handleLoadMoreImages()}
         onOpenImage={openImageViewer}
+        onSetPreviewBackground={togglePreviewBackground}
+        onTogglePreviewPin={togglePreviewPin}
+        pinnedImageKeys={pinnedImageKeys}
+        previewMode={previewConfig.enabled}
       />
 
       {selectedImage ? (
@@ -1353,6 +2386,36 @@ function TransferAppContent({
           sources={sources}
           onClose={() => setTransferModalOpen(false)}
           onTransferred={() => refreshImages({ resetHero: true })}
+        />
+      ) : null}
+
+      {shareDialogOpen ? (
+        <ShareUploadDialog
+          draft={shareDraft}
+          error={shareError}
+          loading={shareLoading}
+          payload={sharePayload}
+          onClose={() => setShareDialogOpen(false)}
+          onCopyLink={() => void copyShareUploadLink()}
+          onRegenerate={() => void generateShareUploadQr()}
+          onUpdateDraft={setShareDraft}
+        />
+      ) : null}
+
+      {previewSettingsOpen ? (
+        <PreviewSettingsDialog
+          backgroundSelected={Boolean(previewConfig.backgroundKey)}
+          pinnedCount={previewConfig.pinnedKeys.length}
+          showUnpinned={previewConfig.showUnpinned}
+          title={previewConfig.title}
+          titleStyle={previewConfig.titleStyle}
+          onClearBackground={clearPreviewBackground}
+          onClearPinned={clearPreviewPinnedImages}
+          onClose={() => setPreviewSettingsOpen(false)}
+          onExitPreview={exitPreviewMode}
+          onSaveTitle={savePreviewTitle}
+          onSetShowUnpinned={setPreviewShowUnpinned}
+          onUpdateTitleStyle={updatePreviewTitleStyle}
         />
       ) : null}
     </main>

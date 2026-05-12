@@ -2,6 +2,7 @@
 
 import {
   getMediaKind,
+  IMAGE_INPUT_ACCEPT,
   isAllowedUploadMedia,
   MEDIA_INPUT_ACCEPT,
   type MediaKind,
@@ -26,11 +27,18 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 type TransferUploadPanelProps = {
+  allowVideo?: boolean;
+  helperText?: string;
+  maxFiles?: number;
   onQueueVisibilityChange?: (visible: boolean) => void;
   onUploaded: () => Promise<void>;
+  shareToken?: string;
   sourceId: string;
   sourcePrefix: string;
+  uploadPathPrefix?: string;
   uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
+  uploadEndpoint?: string;
+  uploadTitle?: string;
 };
 
 type UploadQueueStatus =
@@ -108,11 +116,18 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 export function TransferUploadPanel({
+  allowVideo = true,
+  helperText = "可多选、拖拽或粘贴上传",
+  maxFiles,
   onQueueVisibilityChange,
   onUploaded,
+  shareToken,
   sourceId,
   sourcePrefix,
+  uploadPathPrefix,
   uploadMode,
+  uploadEndpoint,
+  uploadTitle = "上传媒体",
 }: TransferUploadPanelProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const previewTimerRef = useRef<number | null>(null);
@@ -133,6 +148,9 @@ export function TransferUploadPanel({
   const queuedCount = queue.filter((item) => item.status === "queued").length;
   const failedCount = queue.filter((item) => item.status === "error").length;
   const doneCount = queue.filter((item) => item.status === "done").length;
+  const activeQueueCount = queue.filter(
+    (item) => item.status !== "cancelled" && item.status !== "error",
+  ).length;
   const activeProgress = activeItem?.progress ?? (recentImageUrl ? 100 : 0);
   const queueVisible = queue.length > 0;
   const uploadRadius = 32;
@@ -231,14 +249,24 @@ export function TransferUploadPanel({
   function enqueueFiles(files: FileList | File[]) {
     const selectedFiles = Array.from(files);
     const mediaFiles = selectedFiles.filter((file) =>
-      isAllowedUploadMedia(file.type, file.name),
+      isAllowedUploadMedia(file.type, file.name, allowVideo),
     );
 
     if (mediaFiles.length === 0) {
       return;
     }
 
-    const nextItems = mediaFiles.map<UploadQueueItem>((file) => ({
+    const availableSlots =
+      typeof maxFiles === "number"
+        ? Math.max(0, maxFiles - activeQueueCount)
+        : mediaFiles.length;
+    const acceptedFiles = mediaFiles.slice(0, availableSlots);
+
+    if (acceptedFiles.length === 0) {
+      return;
+    }
+
+    const nextItems = acceptedFiles.map<UploadQueueItem>((file) => ({
       id: createQueueId(file),
       file,
       mediaType: getMediaKind(file.type, file.name),
@@ -269,7 +297,11 @@ export function TransferUploadPanel({
     };
 
     try {
-      const pathname = buildUploadPath(item.file.name, item.file.type, sourcePrefix);
+      const pathname = buildUploadPath(
+        item.file.name,
+        item.file.type,
+        uploadPathPrefix ?? sourcePrefix,
+      );
 
       markItem(item.id, {
         error: undefined,
@@ -280,8 +312,10 @@ export function TransferUploadPanel({
 
       await uploadMedia({
         file: item.file,
+        shareToken,
         sourceId,
         uploadMode,
+        uploadEndpoint,
         pathname,
         signal: controller.signal,
         onProgress: (percentage) => {
@@ -309,8 +343,10 @@ export function TransferUploadPanel({
           if (thumbnail && !controller.signal.aborted) {
             await uploadMedia({
               file: thumbnail,
+              shareToken,
               sourceId,
               uploadMode,
+              uploadEndpoint,
               pathname: buildThumbnailPath(pathname, sourcePrefix),
               signal: controller.signal,
               onProgress: () => {
@@ -530,7 +566,7 @@ export function TransferUploadPanel({
         ref={inputRef}
         type="file"
         multiple
-        accept={MEDIA_INPUT_ACCEPT}
+        accept={allowVideo ? MEDIA_INPUT_ACCEPT : IMAGE_INPUT_ACCEPT}
         onChange={handleFileChange}
         className="hidden"
       />
@@ -620,15 +656,15 @@ export function TransferUploadPanel({
           </span>
 
           <span className="min-w-0 flex-1">
-            <span className="block text-base font-semibold text-white">
-              上传媒体
+              <span className="block text-base font-semibold text-white">
+              {uploadTitle}
             </span>
             <span className="mt-1 block max-w-60 truncate text-sm text-white/62">
               {activeItem
                 ? activeItem.statusText
                 : queueVisible
                   ? `${doneCount} 已完成 · ${queuedCount} 等待 · ${failedCount} 失败`
-                  : "可多选、拖拽或粘贴上传"}
+                  : helperText}
             </span>
           </span>
 

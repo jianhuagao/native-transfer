@@ -2,8 +2,10 @@
 
 type UploadMediaOptions = {
   file: File;
+  shareToken?: string;
   sourceId: string;
   uploadMode: "form-data" | "s3-presigned-url" | "vercel-blob-client";
+  uploadEndpoint?: string;
   pathname: string;
   onProgress: (percentage: number) => void;
   signal?: AbortSignal;
@@ -13,21 +15,32 @@ function createAbortError() {
   return new DOMException("Upload cancelled", "AbortError");
 }
 
+function buildUploadEndpoint(uploadEndpoint: string, sourceId: string) {
+  const separator = uploadEndpoint.includes("?") ? "&" : "?";
+
+  return `${uploadEndpoint}${separator}source=${encodeURIComponent(sourceId)}`;
+}
+
 function uploadWithFormData({
   file,
   sourceId,
+  shareToken,
   pathname,
   onProgress,
   signal,
+  uploadEndpoint = "/api/images/upload",
 }: UploadMediaOptions) {
   return new Promise<void>((resolve, reject) => {
     const formData = new FormData();
     formData.set("file", file);
     formData.set("pathname", pathname);
     formData.set("sourceId", sourceId);
+    if (shareToken) {
+      formData.set("token", shareToken);
+    }
 
     const request = new XMLHttpRequest();
-    request.open("POST", "/api/images/upload");
+    request.open("POST", uploadEndpoint);
 
     function abortUpload() {
       request.abort();
@@ -82,18 +95,21 @@ function uploadWithFormData({
 async function uploadWithVercelBlobClient({
   file,
   sourceId,
+  shareToken,
   pathname,
   onProgress,
   signal,
+  uploadEndpoint = "/api/images/upload",
 }: UploadMediaOptions) {
   const { upload } = await import("@vercel/blob/client");
 
   await upload(pathname, file, {
     access: "private",
     abortSignal: signal,
-    handleUploadUrl: `/api/images/upload?source=${encodeURIComponent(sourceId)}`,
-    clientPayload: JSON.stringify({ sourceId }),
+    handleUploadUrl: buildUploadEndpoint(uploadEndpoint, sourceId),
+    clientPayload: JSON.stringify({ shareToken, sourceId }),
     headers: {
+      ...(shareToken ? { "x-share-upload-token": shareToken } : {}),
       "x-storage-source": sourceId,
     },
     multipart: true,
@@ -107,18 +123,22 @@ async function uploadWithVercelBlobClient({
 async function createDirectUpload({
   file,
   sourceId,
+  shareToken,
   pathname,
   signal,
+  uploadEndpoint = "/api/images/upload",
 }: UploadMediaOptions) {
   const response = await fetch(
-    `/api/images/upload?source=${encodeURIComponent(sourceId)}`,
+    buildUploadEndpoint(uploadEndpoint, sourceId),
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(shareToken ? { "x-share-upload-token": shareToken } : {}),
         "x-storage-source": sourceId,
       },
       body: JSON.stringify({
+        shareToken,
         type: "storage.create-direct-upload",
         payload: {
           pathname,
@@ -209,8 +229,10 @@ async function uploadWithS3PresignedUrl(options: UploadMediaOptions) {
 
 export async function uploadMedia({
   file,
+  shareToken,
   sourceId,
   uploadMode,
+  uploadEndpoint = "/api/images/upload",
   pathname,
   onProgress,
   signal,
@@ -218,8 +240,10 @@ export async function uploadMedia({
   if (uploadMode === "form-data") {
     await uploadWithFormData({
       file,
+      shareToken,
       sourceId,
       uploadMode,
+      uploadEndpoint,
       pathname,
       onProgress,
       signal,
@@ -230,8 +254,10 @@ export async function uploadMedia({
   if (uploadMode === "s3-presigned-url") {
     await uploadWithS3PresignedUrl({
       file,
+      shareToken,
       sourceId,
       uploadMode,
+      uploadEndpoint,
       pathname,
       onProgress,
       signal,
@@ -241,8 +267,10 @@ export async function uploadMedia({
 
   await uploadWithVercelBlobClient({
     file,
+    shareToken,
     sourceId,
     uploadMode,
+    uploadEndpoint,
     pathname,
     onProgress,
     signal,
