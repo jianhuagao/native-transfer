@@ -977,7 +977,7 @@ const MediaTile = memo(function MediaTile({
       </button>
 
       <div
-        className={`absolute inset-x-2 top-2 flex items-center justify-end gap-1 transition duration-200 ${
+        className={`absolute inset-x-2 top-2 flex items-center justify-start gap-1 transition duration-200 ${
           active
             ? "opacity-100"
             : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
@@ -1065,7 +1065,7 @@ const MediaTile = memo(function MediaTile({
             </button>
           </>
         )}
-        {active ? (
+        {active && !deleteConfirming ? (
           <button
             type="button"
             onClick={(event) => {
@@ -2208,6 +2208,17 @@ function TransferAppContent({
     setSelectedImage(null);
 
     if (imageForBackground) {
+      setHeroBackdrop((state) => {
+        if (!state.current || state.ready) {
+          return state;
+        }
+
+        return {
+          ...state,
+          ready: true,
+        };
+      });
+
       delayedHeroUpdateRef.current = window.setTimeout(() => {
         updateHeroImage(imageForBackground);
         delayedHeroUpdateRef.current = null;
