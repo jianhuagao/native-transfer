@@ -3,7 +3,7 @@ export const storageSourceDefinitions = [
     // 存储源唯一 ID，用于前端切换、Cookie 记忆和后端路由参数。
     id: "cloudflare_1",
     // 界面上展示的存储源名称。
-    label: "Cloudflare 1",
+    label: "Cloudflare R2",
     // 存储提供方。Cloudflare R2 使用 S3 兼容协议，所以这里填 s3。
     provider: "s3",
     // 上传模式。S3 兼容存储使用预签名 URL，让浏览器直传到存储桶。
@@ -34,7 +34,7 @@ export const storageSourceDefinitions = [
     // 存储源唯一 ID，用于前端切换、Cookie 记忆和后端路由参数。
     id: "vercel_blob1",
     // 界面上展示的存储源名称。
-    label: "Vercel Blob 1",
+    label: "Vercel Blob I",
     // 存储提供方。
     provider: "vercel-blob",
     // 上传模式。Vercel Blob 使用客户端直传。
@@ -52,7 +52,7 @@ export const storageSourceDefinitions = [
     // 存储源唯一 ID，用于前端切换、Cookie 记忆和后端路由参数。
     id: "vercel_blob2",
     // 界面上展示的存储源名称。
-    label: "Vercel Blob 2",
+    label: "Vercel Blob II",
     // 存储提供方。
     provider: "vercel-blob",
     // 上传模式。Vercel Blob 使用客户端直传。

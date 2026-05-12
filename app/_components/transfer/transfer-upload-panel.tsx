@@ -158,7 +158,9 @@ export function TransferUploadPanel({
   const uploadCircumference = 2 * Math.PI * uploadRadius;
   const uploadOffset = uploadCircumference * (1 - activeProgress / 100);
 
-  function updateQueue(updater: (items: UploadQueueItem[]) => UploadQueueItem[]) {
+  function updateQueue(
+    updater: (items: UploadQueueItem[]) => UploadQueueItem[],
+  ) {
     setQueue((currentItems) => {
       const nextItems = updater(currentItems);
       queueRef.current = nextItems;
@@ -581,7 +583,7 @@ export function TransferUploadPanel({
         <button
           type="button"
           onClick={triggerPicker}
-          className="group flex w-full items-center gap-3 rounded-[24px] p-1.5 pr-3 text-left transition"
+          className="group flex w-full items-center gap-3 rounded-3xl p-1.5 pr-3 text-left transition"
         >
           <span className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.20),rgba(255,255,255,0.04)_58%),rgba(0,0,0,0.32)]">
             {!recentImageUrl ? (
@@ -656,7 +658,7 @@ export function TransferUploadPanel({
           </span>
 
           <span className="min-w-0 flex-1">
-              <span className="block text-base font-semibold text-white">
+            <span className="block text-base font-semibold text-white">
               {uploadTitle}
             </span>
             <span className="mt-1 block max-w-60 truncate text-sm text-white/62">
@@ -676,7 +678,9 @@ export function TransferUploadPanel({
 
         <div
           className={`grid transition-[grid-template-rows,opacity] duration-300 ${
-            queueVisible ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            queueVisible
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
           }`}
         >
           <div className="overflow-hidden">
