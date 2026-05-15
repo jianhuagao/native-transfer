@@ -3,13 +3,22 @@
 import { useState } from "react";
 
 type LoginScreenProps = {
+  defaultLiteMode?: boolean;
   notice?: string;
-  onLogin: (password: string) => Promise<string | null>;
+  onLogin: (
+    password: string,
+    options: { liteMode: boolean },
+  ) => Promise<string | null>;
 };
 
-export function LoginScreen({ notice, onLogin }: LoginScreenProps) {
+export function LoginScreen({
+  defaultLiteMode = false,
+  notice,
+  onLogin,
+}: LoginScreenProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [liteMode, setLiteMode] = useState(defaultLiteMode);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -18,7 +27,7 @@ export function LoginScreen({ notice, onLogin }: LoginScreenProps) {
     setError("");
 
     try {
-      const loginError = await onLogin(password);
+      const loginError = await onLogin(password, { liteMode });
 
       if (loginError) {
         setError(loginError);
@@ -66,6 +75,16 @@ export function LoginScreen({ notice, onLogin }: LoginScreenProps) {
           {error || notice ? (
             <p className="text-sm text-rose-300">{error || notice}</p>
           ) : null}
+
+          <label className="ml-auto flex min-h-10 w-fit items-center gap-2 rounded-full px-3 text-sm text-white/38 transition hover:bg-white/6 hover:text-white/62">
+            <span>lite</span>
+            <input
+              type="checkbox"
+              checked={liteMode}
+              onChange={(event) => setLiteMode(event.target.checked)}
+              className="size-4 accent-white/70 opacity-75"
+            />
+          </label>
 
           <button
             type="submit"

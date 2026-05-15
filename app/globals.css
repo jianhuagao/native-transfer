@@ -55,7 +55,7 @@ img {
 }
 
 html {
-  font-size: clamp(12px, 0.833333vw, 20px);
+  font-size: clamp(16px, 0.833333vw, 20px);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -113,7 +113,9 @@ html {
 @container (min-width: 55rem) {
   .nt-media-positioner {
     --dock-columns: 4;
-    --dock-row-gap-total: calc(var(--dock-gap) + var(--dock-gap) + var(--dock-gap));
+    --dock-row-gap-total: calc(
+      var(--dock-gap) + var(--dock-gap) + var(--dock-gap)
+    );
   }
 }
 

@@ -33,6 +33,7 @@ type ModalPreviewImageProps = {
   onSettled: () => void;
   optimizedSrc: string;
   originalSrc: string;
+  previewQuality: 70 | 75 | 78 | 82 | 90 | 100;
   useOriginal: boolean;
 };
 
@@ -41,6 +42,7 @@ const ModalPreviewImage = memo(function ModalPreviewImage({
   onSettled,
   optimizedSrc,
   originalSrc,
+  previewQuality,
   useOriginal,
 }: ModalPreviewImageProps) {
   if (useOriginal) {
@@ -65,7 +67,7 @@ const ModalPreviewImage = memo(function ModalPreviewImage({
       loading="eager"
       fetchPriority="high"
       sizes={MODAL_PREVIEW_SIZES}
-      quality={82}
+      quality={previewQuality}
       onLoad={onSettled}
       onError={onSettled}
       draggable={false}
@@ -75,8 +77,10 @@ const ModalPreviewImage = memo(function ModalPreviewImage({
 });
 
 type ImageViewerModalProps = {
+  allowOriginalPreview?: boolean;
   deletingId: string | null;
   images: StoredImage[];
+  previewQuality?: 70 | 75 | 78 | 82 | 90 | 100;
   selectedImage: StoredImage;
   onClose: () => void;
   onCopyLink: (image: StoredImage) => Promise<void>;
@@ -86,8 +90,10 @@ type ImageViewerModalProps = {
 };
 
 export function ImageViewerModal({
+  allowOriginalPreview = true,
   deletingId,
   images,
+  previewQuality = 82,
   selectedImage,
   onClose,
   onCopyLink,
@@ -258,6 +264,7 @@ export function ImageViewerModal({
                       alt={selectedImage.name}
                       optimizedSrc={selectedImage.url}
                       originalSrc={selectedImage.originalUrl}
+                      previewQuality={previewQuality}
                       useOriginal={previewUseOriginal}
                       onSettled={handleSelectedImageSettled}
                     />
@@ -330,18 +337,20 @@ export function ImageViewerModal({
                 >
                   <ArrowPathIcon className="size-4.5 text-white" />
                 </button>
-                <div className="inline-flex h-8 items-center justify-center rounded-md px-2 text-[11px] font-semibold tracking-[0.04em] text-white/62">
+                <div className="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-semibold tracking-[0.04em] text-white/62">
                   {previewScale.toFixed(2)}x
                 </div>
-                <button
-                  type="button"
-                  onClick={showSelectedImageOriginal}
-                  disabled={previewUseOriginal}
-                  title="原图"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <PhotoIcon className="size-4.5 text-white" />
-                </button>
+                {allowOriginalPreview ? (
+                  <button
+                    type="button"
+                    onClick={showSelectedImageOriginal}
+                    disabled={previewUseOriginal}
+                    title="原图"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/82 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <PhotoIcon className="size-4.5 text-white" />
+                  </button>
+                ) : null}
               </>
             ) : null}
             <button

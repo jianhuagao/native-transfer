@@ -30,6 +30,7 @@ import {
 } from "@heroicons/react/24/solid";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import {
   memo,
@@ -153,7 +154,7 @@ function StorageUsageBadge({ usage }: { usage: StorageUsage }) {
     >
       <CircleStackIcon className="size-4.5 shrink-0 text-cyan-100/86" />
       <div className="min-w-0 flex-1 sm:min-w-29">
-        <div className="flex items-center justify-between gap-2 text-[11px] leading-none">
+        <div className="flex items-center justify-between gap-2 text-xs leading-none">
           <span className="hidden text-white/58 sm:inline">容量</span>
           <span className="truncate font-medium text-white">
             {hasQuota
@@ -191,7 +192,7 @@ function StorageSourceSelect({
 
   return (
     <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 text-white/78 sm:flex-none">
-      <span className="hidden text-[11px] text-white/48 sm:inline">源</span>
+      <span className="hidden text-xs text-white/48 sm:inline">源</span>
       <select
         value={activeSourceId}
         disabled={disabled}
@@ -609,7 +610,7 @@ const MediaTile = memo(function MediaTile({
           aria-label={`${deleteConfirming ? "确认删除" : "删除"} ${image.name}`}
           className={`flex h-8 items-center justify-center rounded-full border shadow-[0_10px_26px_rgba(0,0,0,0.28)] backdrop-blur-md transition disabled:cursor-not-allowed disabled:opacity-60 ${
             deleteConfirming
-              ? "w-14 border-rose-200/28 bg-rose-400/24 px-2 text-[11px] font-medium text-rose-50"
+              ? "w-14 border-rose-200/28 bg-rose-400/24 px-2 text-xs font-medium text-rose-50"
               : "w-8 border-white/12 bg-black/46 text-rose-100 hover:bg-rose-400/18"
           }`}
         >
@@ -1163,7 +1164,10 @@ function TransferAppContent({
     };
   }, [authorized]);
 
-  async function handleLogin(password: string) {
+  async function handleLogin(
+    password: string,
+    options: { liteMode: boolean },
+  ) {
     setAuthNotice("");
     try {
       const response = await fetch("/api/auth/login", {
@@ -1177,6 +1181,11 @@ function TransferAppContent({
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
         return payload.error ?? "登录失败";
+      }
+
+      if (options.liteMode) {
+        window.location.assign("/lite");
+        return null;
       }
 
       setHistoryLoading(true);
@@ -1519,6 +1528,13 @@ function TransferAppContent({
               className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
             />
           </button>
+          <Link
+            href="/lite"
+            prefetch={false}
+            className="flex h-10 items-center justify-center rounded-full px-3 text-sm font-medium text-white/68 transition hover:bg-white/14 hover:text-white"
+          >
+            lite
+          </Link>
           <button
             type="button"
             onClick={() => void handleLogout()}

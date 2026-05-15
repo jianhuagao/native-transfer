@@ -33,6 +33,7 @@ type TransferUploadPanelProps = {
   onQueueVisibilityChange?: (visible: boolean) => void;
   onUploaded: () => Promise<void>;
   shareToken?: string;
+  showPreviews?: boolean;
   sourceId: string;
   sourcePrefix: string;
   uploadPathPrefix?: string;
@@ -54,7 +55,7 @@ type UploadQueueItem = {
   error?: string;
   file: File;
   mediaType: MediaKind;
-  previewUrl: string;
+  previewUrl: string | null;
   progress: number;
   status: UploadQueueStatus;
   statusText: string;
@@ -122,6 +123,7 @@ export function TransferUploadPanel({
   onQueueVisibilityChange,
   onUploaded,
   shareToken,
+  showPreviews = true,
   sourceId,
   sourcePrefix,
   uploadPathPrefix,
@@ -183,10 +185,14 @@ export function TransferUploadPanel({
   }
 
   function commitRecentImage(
-    previewUrl: string,
+    previewUrl: string | null,
     fileName: string,
     mediaType: MediaKind,
   ) {
+    if (!previewUrl) {
+      return;
+    }
+
     setRecentImageUrl((current) => {
       if (current && current !== previewUrl) {
         URL.revokeObjectURL(current);
@@ -200,10 +206,14 @@ export function TransferUploadPanel({
   }
 
   function scheduleRecentImage(
-    previewUrl: string,
+    previewUrl: string | null,
     fileName: string,
     mediaType: MediaKind,
   ) {
+    if (!previewUrl) {
+      return;
+    }
+
     clearPreviewTimer();
 
     const delay = isTouchLikeDevice() ? RECENT_PREVIEW_DELAY_TOUCH_MS : 0;
@@ -275,7 +285,7 @@ export function TransferUploadPanel({
       id: createQueueId(file),
       file,
       mediaType: getMediaKind(file.type, file.name),
-      previewUrl: URL.createObjectURL(file),
+      previewUrl: showPreviews ? URL.createObjectURL(file) : null,
       progress: 0,
       status: "queued",
       statusText: "等待上传",
@@ -509,7 +519,7 @@ export function TransferUploadPanel({
           continue;
         }
 
-        if (recentImageUrlRef.current !== item.previewUrl) {
+        if (item.previewUrl && recentImageUrlRef.current !== item.previewUrl) {
           URL.revokeObjectURL(item.previewUrl);
         }
       }
@@ -554,7 +564,9 @@ export function TransferUploadPanel({
       activeUploadRef.current?.controller.abort();
 
       for (const item of queueRef.current) {
-        URL.revokeObjectURL(item.previewUrl);
+        if (item.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
       }
 
       if (recentImageUrlRef.current) {
@@ -697,26 +709,30 @@ export function TransferUploadPanel({
                   key={item.id}
                   className="flex items-center gap-2 rounded-[18px] border border-white/10 bg-black/28 p-2"
                 >
-                  <span className="relative size-11 shrink-0 overflow-hidden rounded-xl bg-white/8">
-                    <MediaPreview
-                      src={item.previewUrl}
-                      alt={item.file.name}
-                      mediaType={item.mediaType}
-                      className="object-cover"
-                      imageProps={{
-                        fill: true,
-                        unoptimized: true,
-                        sizes: "2.75rem",
-                      }}
-                      showVideoBadge={item.mediaType === "video"}
-                    />
+                  <span className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/8">
+                    {item.previewUrl ? (
+                      <MediaPreview
+                        src={item.previewUrl}
+                        alt={item.file.name}
+                        mediaType={item.mediaType}
+                        className="object-cover"
+                        imageProps={{
+                          fill: true,
+                          unoptimized: true,
+                          sizes: "2.75rem",
+                        }}
+                        showVideoBadge={item.mediaType === "video"}
+                      />
+                    ) : (
+                      <CloudArrowUpIcon className="size-5 text-white/70" />
+                    )}
                   </span>
 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium text-white/88">
                       {item.file.name}
                     </span>
-                    <span className="mt-1 flex items-center gap-2 text-[11px] text-white/48">
+                    <span className="mt-1 flex items-center gap-2 text-xs text-white/48">
                       <span>{formatFileSize(item.file.size)}</span>
                       <span>{getUploadStatusLabel(item.status)}</span>
                     </span>
@@ -735,7 +751,7 @@ export function TransferUploadPanel({
                       />
                     </span>
                     {item.error ? (
-                      <span className="mt-1 block truncate text-[11px] text-rose-200/90">
+                      <span className="mt-1 block truncate text-xs text-rose-200/90">
                         {item.error}
                       </span>
                     ) : null}
@@ -775,7 +791,7 @@ export function TransferUploadPanel({
             </div>
 
             <div className="flex items-center justify-between gap-2 px-2 py-1">
-              <span className="inline-flex items-center gap-1 text-[11px] text-white/45">
+              <span className="inline-flex items-center gap-1 text-xs text-white/45">
                 <ClipboardDocumentIcon className="size-3.5" />
                 支持拖拽、粘贴和多选
               </span>
