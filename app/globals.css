@@ -55,7 +55,7 @@ img {
 }
 
 html {
-  font-size: clamp(16px, 0.833333vw, 20px);
+  font-size: clamp(12px, 0.833333vw, 20px);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
