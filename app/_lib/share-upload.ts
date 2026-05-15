@@ -20,6 +20,14 @@ export function getShareUploadThumbnailPathPrefix(
   return `${source.prefix}~thumbs/shared/${payload.shareId}/`;
 }
 
+export function getShareUploadReservationPathPrefix(
+  payload: ShareUploadTokenPayload,
+) {
+  const source = getStorageSource(payload.sourceId);
+
+  return `${source.prefix}~share-upload-reservations/${payload.shareId}/`;
+}
+
 export function getShareUploadSource(payload: ShareUploadTokenPayload) {
   return getStorageSource(payload.sourceId);
 }

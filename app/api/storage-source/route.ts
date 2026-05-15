@@ -4,6 +4,7 @@ import { isAuthorized } from "@/app/_lib/auth";
 import {
   getImagesPayload,
 } from "@/app/_lib/storage";
+import { readJsonObject } from "@/app/_lib/http";
 import { setActiveStorageSourceId } from "@/app/_lib/storage-providers";
 
 export const runtime = "nodejs";
@@ -17,9 +18,9 @@ export async function POST(request: Request) {
     return unauthorized();
   }
 
-  const payload = (await request.json()) as { sourceId?: string };
+  const payload = await readJsonObject(request);
 
-  if (!payload.sourceId) {
+  if (typeof payload?.sourceId !== "string" || !payload.sourceId) {
     return NextResponse.json({ error: "缺少存储源" }, { status: 400 });
   }
 

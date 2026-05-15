@@ -2,6 +2,7 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { cookies } from "next/headers";
 
 export const AUTH_COOKIE_NAME = "native-transfer-session";
+const PREVIEW_TOKEN_TTL_MS = 1000 * 60 * 60 * 2;
 
 export type ShareUploadTokenPayload = {
   allowVideo: boolean;
@@ -29,10 +30,10 @@ function createSessionValue(password: string) {
     .digest("hex");
 }
 
-function createPreviewTokenValue(pathname: string) {
-  return createHash("sha256")
-    .update(`native-transfer-preview:${getPassword()}:${pathname}`)
-    .digest("hex");
+function createPreviewTokenSignature(pathname: string, expiresAt: number) {
+  return createHmac("sha256", getPassword())
+    .update(`native-transfer-preview:${pathname}:${expiresAt}`)
+    .digest("base64url");
 }
 
 function createShareUploadSignature(value: string) {
@@ -96,7 +97,9 @@ export function getSessionCookieValue() {
 }
 
 export function createPreviewToken(pathname: string) {
-  return createPreviewTokenValue(pathname);
+  const expiresAt = Date.now() + PREVIEW_TOKEN_TTL_MS;
+
+  return `${expiresAt}.${createPreviewTokenSignature(pathname, expiresAt)}`;
 }
 
 export function verifyPreviewToken(pathname: string, token: string | null) {
@@ -104,8 +107,20 @@ export function verifyPreviewToken(pathname: string, token: string | null) {
     return false;
   }
 
-  const expected = createPreviewTokenValue(pathname);
-  const left = Buffer.from(token);
+  const [expiresAtText, signature, ...rest] = token.split(".");
+  const expiresAt = Number(expiresAtText);
+
+  if (
+    rest.length > 0 ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= Date.now() ||
+    !signature
+  ) {
+    return false;
+  }
+
+  const expected = createPreviewTokenSignature(pathname, expiresAt);
+  const left = Buffer.from(signature);
   const right = Buffer.from(expected);
 
   if (left.length !== right.length) {

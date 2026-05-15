@@ -46,15 +46,18 @@ export async function GET(
       contentLength,
       contentRange,
     } = await readImage(pathname, request.headers.get("range"), sourceId);
-    const disposition = isDownload
+    const safeMimeType =
+      mimeType === "image/svg+xml" ? "application/octet-stream" : mimeType;
+    const disposition = isDownload || mimeType === "image/svg+xml"
       ? `attachment; filename="${encodeURIComponent(fileName)}"`
       : `inline; filename="${encodeURIComponent(fileName)}"`;
     const headers: Record<string, string> = {
-      "Content-Type": mimeType,
+      "Content-Type": safeMimeType,
       "Content-Length": contentLength ?? size.toString(),
       "Content-Disposition": disposition,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": previewAllowed
-        ? "public, max-age=31536000, immutable"
+        ? "private, max-age=300"
         : "private, no-store, no-cache, must-revalidate",
     };
 
@@ -71,7 +74,10 @@ export async function GET(
       headers,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "Blob not found") {
+    if (
+      error instanceof Error &&
+      (error.message === "Blob not found" || error.message === "上传路径无效")
+    ) {
       return NextResponse.json({ error: "媒体不存在" }, { status: 404 });
     }
 
@@ -90,7 +96,13 @@ export async function DELETE(
 
   const { name } = await context.params;
   const sourceId = new URL(request.url).searchParams.get("source");
-  await removeImage(getPathnameFromSegments(name), sourceId);
+  try {
+    await removeImage(getPathnameFromSegments(name), sourceId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "删除失败";
+
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   return NextResponse.json({
     ok: true,

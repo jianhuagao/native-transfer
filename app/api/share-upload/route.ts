@@ -8,6 +8,7 @@ import {
   DEFAULT_SHARE_EXPIRES_MINUTES,
   DEFAULT_SHARE_MAX_FILES,
 } from "@/app/_lib/share-upload";
+import { readJsonObject } from "@/app/_lib/http";
 import { getStorageSource } from "@/app/_lib/storage-providers";
 
 export const runtime = "nodejs";
@@ -28,14 +29,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    const body = (await request.json()) as {
-      allowVideo?: unknown;
-      expiresInMinutes?: unknown;
-      maxFiles?: unknown;
-      sourceId?: unknown;
-    };
+    const body = await readJsonObject(request);
 
-    if (typeof body.sourceId !== "string" || !body.sourceId) {
+    if (typeof body?.sourceId !== "string" || !body.sourceId) {
       throw new Error("请选择上传目标源");
     }
 

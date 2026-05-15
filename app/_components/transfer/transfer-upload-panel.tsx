@@ -133,6 +133,9 @@ export function TransferUploadPanel({
   const previewTimerRef = useRef<number | null>(null);
   const recentImageUrlRef = useRef<string | null>(null);
   const activeUploadRef = useRef<ActiveUpload | null>(null);
+  const enqueueFilesRef = useRef<(files: FileList | File[]) => void>(() => {
+    return;
+  });
   const queueRef = useRef<UploadQueueItem[]>([]);
   const processingRef = useRef(false);
   const refreshAfterQueueRef = useRef(false);
@@ -441,7 +444,7 @@ export function TransferUploadPanel({
     const files = event.target.files;
 
     if (files) {
-      enqueueFiles(files);
+      enqueueFilesRef.current(files);
     }
 
     if (inputRef.current) {
@@ -520,6 +523,10 @@ export function TransferUploadPanel({
   }, [onQueueVisibilityChange, queueVisible]);
 
   useEffect(() => {
+    enqueueFilesRef.current = enqueueFiles;
+  });
+
+  useEffect(() => {
     function handlePaste(event: ClipboardEvent) {
       if (isEditableTarget(event.target)) {
         return;
@@ -531,7 +538,7 @@ export function TransferUploadPanel({
         return;
       }
 
-      enqueueFiles(files);
+      enqueueFilesRef.current(files);
     }
 
     window.addEventListener("paste", handlePaste);
@@ -539,7 +546,7 @@ export function TransferUploadPanel({
     return () => {
       window.removeEventListener("paste", handlePaste);
     };
-  });
+  }, []);
 
   useEffect(() => {
     return () => {

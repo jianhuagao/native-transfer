@@ -12,6 +12,7 @@ import {
 } from "@/app/_lib/storage";
 import {
   getShareUploadPathPrefix,
+  getShareUploadReservationPathPrefix,
   getShareUploadThumbnailPathPrefix,
 } from "@/app/_lib/share-upload";
 
@@ -65,6 +66,7 @@ function getConstraints(payload: ShareUploadTokenPayload) {
     countPrefix: prefix,
     maxFiles: payload.maxFiles,
     pathnamePrefixes: [prefix, getShareUploadThumbnailPathPrefix(payload)],
+    reservationPrefix: getShareUploadReservationPathPrefix(payload),
   };
 }
 

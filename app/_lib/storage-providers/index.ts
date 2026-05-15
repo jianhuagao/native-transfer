@@ -122,11 +122,16 @@ export function getPublicStorageSources(): PublicStorageSource[] {
 
 export function getStorageSource(sourceId?: string | null) {
   const sources = getStorageSources();
-  const selectedSource =
-    sources.find((source) => source.id === sourceId) ?? sources[0];
+  const selectedSource = sourceId
+    ? sources.find((source) => source.id === sourceId)
+    : sources[0];
 
   if (!selectedSource) {
-    throw new Error("No storage sources configured.");
+    throw new Error(
+      sourceId
+        ? `Unknown storage source: ${sourceId}.`
+        : "No storage sources configured.",
+    );
   }
 
   return selectedSource;
@@ -138,7 +143,17 @@ export async function getActiveStorageSourceId(sourceId?: string | null) {
   }
 
   const cookieStore = await cookies();
-  return getStorageSource(cookieStore.get(STORAGE_SOURCE_COOKIE_NAME)?.value).id;
+  const savedSourceId = cookieStore.get(STORAGE_SOURCE_COOKIE_NAME)?.value;
+
+  if (savedSourceId) {
+    try {
+      return getStorageSource(savedSourceId).id;
+    } catch {
+      return getStorageSource().id;
+    }
+  }
+
+  return getStorageSource().id;
 }
 
 export async function setActiveStorageSourceId(sourceId: string) {

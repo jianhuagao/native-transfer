@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    deviceSizes: [640, 828, 1080, 1440, 1920],
+    imageSizes: [128, 256, 384, 512],
     localPatterns: [
       {
         pathname: "/api/images/**",

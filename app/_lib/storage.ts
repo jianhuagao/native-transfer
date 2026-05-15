@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { createPreviewToken, verifyPreviewToken } from "@/app/_lib/auth";
 import {
@@ -96,6 +97,8 @@ const MAX_IMAGES_PAGE_SIZE = 120;
 const MAX_STORAGE_LIST_LIMIT = 1000;
 const MAX_TRANSFER_ITEMS = 100;
 const THUMBNAIL_DIRECTORY = "~thumbs";
+const SHARE_UPLOAD_RESERVATION_DIRECTORY = "~share-upload-reservations";
+const SHARE_UPLOAD_RESERVATION_TTL_MS = 1000 * 60 * 30;
 
 type ImagesPayloadOptions = {
   cursor?: string | null;
@@ -108,6 +111,7 @@ type UploadConstraintOptions = {
   maxFiles?: number;
   pathnamePrefix?: string;
   pathnamePrefixes?: string[];
+  reservationPrefix?: string;
 };
 
 export type TransferConflictStrategy = "skip" | "rename" | "overwrite";
@@ -287,21 +291,167 @@ function isThumbnailPathname(sourcePrefix: string, pathname: string) {
   );
 }
 
+function isShareUploadReservationPathname(
+  sourcePrefix: string,
+  pathname: string,
+) {
+  return normalizeStoragePathname(pathname).startsWith(
+    `${sourcePrefix}${SHARE_UPLOAD_RESERVATION_DIRECTORY}/`,
+  );
+}
+
+function isInternalPathname(sourcePrefix: string, pathname: string) {
+  return (
+    isThumbnailPathname(sourcePrefix, pathname) ||
+    isShareUploadReservationPathname(sourcePrefix, pathname)
+  );
+}
+
 function isVideoUpload(contentType: string | undefined, pathname: string) {
   return getMediaKind(contentType, pathname) === "video";
 }
 
-async function countStoredMediaInPrefix(sourceId: string, prefix: string) {
+function getUploadSlotKey(pathname: string) {
+  return createHash("sha256")
+    .update(normalizeStoragePathname(pathname))
+    .digest("base64url")
+    .slice(0, 32);
+}
+
+function getUploadReservationPathname(
+  reservationPrefix: string,
+  pathname: string,
+) {
+  return `${reservationPrefix}${getUploadSlotKey(pathname)}.json`;
+}
+
+async function getStoredMediaSlotKeysInPrefix(
+  sourceId: string,
+  prefix: string,
+  sourcePrefix: string,
+) {
   const storageProvider = await getStorageProvider(sourceId);
-  const source = getStorageSource(sourceId);
   const objects = await storageProvider.list({
     prefix,
     limit: MAX_STORAGE_LIST_LIMIT,
   });
 
-  return objects.filter(
-    (object) => !isThumbnailPathname(source.prefix, object.pathname),
-  ).length;
+  return objects
+    .filter((object) => !isInternalPathname(sourcePrefix, object.pathname))
+    .map((object) => getUploadSlotKey(object.pathname));
+}
+
+async function getReservedUploadSlotKeys(
+  sourceId: string,
+  reservationPrefix: string,
+) {
+  const storageProvider = await getStorageProvider(sourceId);
+  const expiresBefore = Date.now() - SHARE_UPLOAD_RESERVATION_TTL_MS;
+  const objects = await storageProvider.list({
+    prefix: reservationPrefix,
+    limit: MAX_STORAGE_LIST_LIMIT,
+  });
+  const expiredObjects = objects.filter(
+    (object) => object.uploadedAt.getTime() < expiresBefore,
+  );
+
+  if (expiredObjects.length > 0) {
+    await Promise.allSettled(
+      expiredObjects.map((object) => storageProvider.delete(object.pathname)),
+    );
+  }
+
+  return objects
+    .filter((object) => object.uploadedAt.getTime() >= expiresBefore)
+    .map((object) => {
+      const extension = path.posix.extname(object.pathname);
+      return path.posix.basename(object.pathname, extension);
+    });
+}
+
+async function countUploadSlots({
+  reservationPrefix,
+  sourceId,
+  sourcePrefix,
+  uploadPrefix,
+}: {
+  reservationPrefix?: string;
+  sourceId: string;
+  sourcePrefix: string;
+  uploadPrefix: string;
+}) {
+  const [storedSlotKeys, reservedSlotKeys] = await Promise.all([
+    getStoredMediaSlotKeysInPrefix(sourceId, uploadPrefix, sourcePrefix),
+    reservationPrefix
+      ? getReservedUploadSlotKeys(sourceId, reservationPrefix)
+      : Promise.resolve([]),
+  ]);
+
+  return new Set([...storedSlotKeys, ...reservedSlotKeys]).size;
+}
+
+async function reserveUploadSlot({
+  constraints,
+  pathname,
+  sourceId,
+  sourcePrefix,
+}: {
+  constraints?: UploadConstraintOptions;
+  pathname: string;
+  sourceId: string;
+  sourcePrefix: string;
+}) {
+  if (
+    !constraints?.countPrefix ||
+    !constraints.maxFiles ||
+    !constraints.reservationPrefix ||
+    isThumbnailPathname(sourcePrefix, pathname)
+  ) {
+    return null;
+  }
+
+  const storageProvider = await getStorageProvider(sourceId);
+  const reservationPathname = getUploadReservationPathname(
+    constraints.reservationPrefix,
+    pathname,
+  );
+
+  await storageProvider.put(
+    reservationPathname,
+    new File(
+      [
+        JSON.stringify({
+          createdAt: new Date().toISOString(),
+          pathname,
+        }),
+      ],
+      "reservation.json",
+      { type: "application/json" },
+    ),
+    {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+    },
+  );
+
+  const slotCount = await countUploadSlots({
+    reservationPrefix: constraints.reservationPrefix,
+    sourceId,
+    sourcePrefix,
+    uploadPrefix: constraints.countPrefix,
+  });
+
+  if (slotCount > constraints.maxFiles) {
+    await storageProvider.delete(reservationPathname);
+    throw new Error(`当前二维码最多上传 ${constraints.maxFiles} 张`);
+  }
+
+  return {
+    pathname: reservationPathname,
+    release: () => storageProvider.delete(reservationPathname),
+  };
 }
 
 async function assertUploadConstraints({
@@ -341,8 +491,13 @@ async function assertUploadConstraints({
   if (
     constraints?.countPrefix &&
     constraints.maxFiles &&
+    !constraints.reservationPrefix &&
     !isThumbnail &&
-    (await countStoredMediaInPrefix(sourceId, constraints.countPrefix)) >=
+    (await countUploadSlots({
+      sourceId,
+      sourcePrefix,
+      uploadPrefix: constraints.countPrefix,
+    })) >=
       constraints.maxFiles
   ) {
     throw new Error(`当前二维码最多上传 ${constraints.maxFiles} 张`);
@@ -467,11 +622,20 @@ export async function saveUpload(
     sourcePrefix: source.prefix,
   });
 
-  const storedObject = await storageProvider.put(pathname, file, {
-    access: getStorageAccess(source.id),
-    addRandomSuffix: false,
-    contentType: file.type || undefined,
+  const reservation = await reserveUploadSlot({
+    constraints,
+    pathname,
+    sourceId: source.id,
+    sourcePrefix: source.prefix,
   });
+
+  const storedObject = await storageProvider
+    .put(pathname, file, {
+      access: getStorageAccess(source.id),
+      addRandomSuffix: false,
+      contentType: file.type || undefined,
+    })
+    .finally(() => reservation?.release());
 
   return storedObject.pathname;
 }
@@ -497,7 +661,7 @@ export async function listImages(
   );
 
   return objects
-    .filter((object) => !isThumbnailPathname(source.prefix, object.pathname))
+    .filter((object) => !isInternalPathname(source.prefix, object.pathname))
     .map((object) => {
       const encodedPath = encodePathname(object.pathname);
       const previewToken = createSourcePreviewToken(source.id, object.pathname);
@@ -547,7 +711,8 @@ export async function readImage(
   sourceId?: string | null,
 ) {
   const activeSourceId = await getActiveStorageSourceId(sourceId);
-  const pathname = decodePathname(name);
+  const source = getStorageSource(activeSourceId);
+  const pathname = assertPathnameAllowed(decodePathname(name), source.prefix);
   const storageProvider = await getStorageProvider(activeSourceId);
   const result = await storageProvider.read(pathname, {
     access: getStorageAccess(activeSourceId),
@@ -582,9 +747,12 @@ export async function removeImage(name: string, sourceId?: string | null) {
   const activeSourceId = await getActiveStorageSourceId(sourceId);
   const source = getStorageSource(activeSourceId);
   const pathname = decodePathname(name);
+  const allowedPathname = assertPathnameAllowed(pathname, source.prefix);
   const storageProvider = await getStorageProvider(activeSourceId);
-  await storageProvider.delete(pathname);
-  await storageProvider.delete(getThumbnailPathname(source.prefix, pathname));
+  await storageProvider.delete(allowedPathname);
+  await storageProvider.delete(
+    getThumbnailPathname(source.prefix, allowedPathname),
+  );
 }
 
 async function copyStorageObject({
@@ -827,6 +995,12 @@ export async function handleUploadRequest(
         sourceId: activeSourceId,
         sourcePrefix,
       });
+      await reserveUploadSlot({
+        constraints,
+        pathname,
+        sourceId: activeSourceId,
+        sourcePrefix,
+      });
 
       return {
         allowedContentTypes:
@@ -884,6 +1058,12 @@ export async function createDirectUpload(
   await assertUploadConstraints({
     constraints,
     contentType: options.contentType,
+    pathname,
+    sourceId: activeSourceId,
+    sourcePrefix: source.prefix,
+  });
+  await reserveUploadSlot({
+    constraints,
     pathname,
     sourceId: activeSourceId,
     sourcePrefix: source.prefix,
