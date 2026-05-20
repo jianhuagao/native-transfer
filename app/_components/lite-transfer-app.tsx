@@ -25,11 +25,14 @@ import {
   ArrowPathIcon,
   CircleStackIcon,
   CloudArrowUpIcon,
+  ComputerDesktopIcon,
+  PhotoIcon,
   PowerIcon,
   QrCodeIcon,
   TrashIcon,
 } from "@heroicons/react/24/solid";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 import {
   startTransition,
@@ -162,6 +165,7 @@ function LiteTransferAppContent({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [switchingSource, setSwitchingSource] = useState(false);
+  const [rowPreviewsVisible, setRowPreviewsVisible] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareDraft, setShareDraft] = useState<ShareUploadOptions>(
     DEFAULT_SHARE_UPLOAD_OPTIONS,
@@ -528,6 +532,18 @@ function LiteTransferAppContent({
           <div className="ml-auto flex items-center gap-1">
             <button
               type="button"
+              onClick={() => setRowPreviewsVisible((visible) => !visible)}
+              aria-pressed={rowPreviewsVisible}
+              aria-label={rowPreviewsVisible ? "隐藏行预览" : "显示行预览"}
+              title={rowPreviewsVisible ? "隐藏行预览" : "显示行预览"}
+              className={`flex size-9 items-center justify-center rounded-lg transition hover:bg-white/10 ${
+                rowPreviewsVisible ? "text-cyan-100" : "text-white/78"
+              }`}
+            >
+              <PhotoIcon className="size-5" />
+            </button>
+            <button
+              type="button"
               onClick={openShareUploadDialog}
               disabled={!activeSourceId || historyLoading}
               aria-label="生成上传二维码"
@@ -550,10 +566,13 @@ function LiteTransferAppContent({
             </button>
             <Link
               href="/"
+              replace
               prefetch={false}
-              className="flex h-9 items-center rounded-lg px-2 text-sm text-white/78 transition hover:bg-white/10 hover:text-white"
+              aria-label="完整版"
+              title="完整版"
+              className="flex size-9 items-center justify-center rounded-lg text-white/78 transition hover:bg-white/10 hover:text-white"
             >
-              完整版
+              <ComputerDesktopIcon className="size-5" />
             </Link>
             <button
               type="button"
@@ -617,8 +636,30 @@ function LiteTransferAppContent({
                       setSelectedImage(image);
                     }
                   }}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 px-3 py-2.5 text-left transition hover:bg-white/[0.06] sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+                  className={`grid w-full gap-3 px-3 py-2.5 text-left transition hover:bg-white/[0.06] ${
+                    rowPreviewsVisible
+                      ? "grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.75rem_minmax(0,1fr)_8rem_auto]"
+                      : "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
+                  }`}
                 >
+                  {rowPreviewsVisible ? (
+                    <span className="relative size-10 self-center overflow-hidden rounded-md border border-white/10 bg-white/[0.04] sm:size-11">
+                      {image.mediaType === "image" ? (
+                        <Image
+                          src={image.thumbnailUrl ?? image.url}
+                          alt={image.name}
+                          fill
+                          sizes="44px"
+                          quality={28}
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center">
+                          <PhotoIcon className="size-5 text-white/38" />
+                        </span>
+                      )}
+                    </span>
+                  ) : null}
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-white/88">
                       {image.name}
@@ -687,7 +728,6 @@ function LiteTransferAppContent({
       {selectedPreviewImage ? (
         <ImageViewerModal
           key={selectedPreviewImage.id}
-          allowOriginalPreview={false}
           deletingId={deletingId}
           images={previewImages}
           previewQuality={70}

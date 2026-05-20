@@ -22,6 +22,7 @@ import {
   ArrowsRightLeftIcon,
   CheckIcon,
   CircleStackIcon,
+  DevicePhoneMobileIcon,
   LinkIcon,
   PowerIcon,
   QrCodeIcon,
@@ -76,6 +77,7 @@ const QUICK_ACTION_PRESS_MS = 420;
 const QUICK_DELETE_CONFIRM_MS = 2400;
 const COPY_FEEDBACK_MS = 1400;
 const DEFAULT_PAGE_TITLE = "Native Transfer";
+const HERO_BACKDROP_STORAGE_KEY = "native-transfer:hero-backdrop";
 const DEFAULT_SHARE_UPLOAD_OPTIONS = {
   allowVideo: false,
   expiresInMinutes: 10,
@@ -107,6 +109,50 @@ function pickLatestHeroImage(images: StoredImage[]) {
 
 function getImageIdentity(image: StoredImage | null) {
   return image ? `${image.sourceId}:${image.id}` : "";
+}
+
+function readStoredHeroIdentity() {
+  try {
+    return window.localStorage.getItem(HERO_BACKDROP_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredHeroIdentity(image: StoredImage | null) {
+  try {
+    if (image) {
+      window.localStorage.setItem(
+        HERO_BACKDROP_STORAGE_KEY,
+        getImageIdentity(image),
+      );
+      return;
+    }
+
+    window.localStorage.removeItem(HERO_BACKDROP_STORAGE_KEY);
+  } catch {
+    // Ignore browsers or modes where localStorage is unavailable.
+  }
+}
+
+function pickStoredHeroImage(images: StoredImage[]) {
+  const storedIdentity = readStoredHeroIdentity();
+
+  if (!storedIdentity) {
+    return null;
+  }
+
+  return (
+    images.find((image) => {
+      return (
+        image.mediaType === "image" && getImageIdentity(image) === storedIdentity
+      );
+    }) ?? null
+  );
+}
+
+function pickPreferredHeroImage(images: StoredImage[]) {
+  return pickStoredHeroImage(images) ?? pickLatestHeroImage(images);
 }
 
 function getStoredImageKey(image: StoredImage) {
@@ -924,11 +970,8 @@ function TransferAppContent({
   const [storageUsage, setStorageUsage] = useState<StorageUsage>(
     initialPayload?.storageUsage ?? EMPTY_STORAGE_USAGE,
   );
-  const initialHero = initialPayload
-    ? pickLatestHeroImage(initialPayload.images)
-    : null;
   const [heroBackdrop, setHeroBackdrop] = useState<HeroBackdropState>({
-    current: initialHero,
+    current: null,
     previous: null,
     ready: false,
     version: 0,
@@ -961,6 +1004,7 @@ function TransferAppContent({
   const [uploadQueueVisible, setUploadQueueVisible] = useState(false);
   const [backgroundBlurred, setBackgroundBlurred] = useState(false);
   const activeSource = sources.find((source) => source.id === activeSourceId);
+  const currentHeroIdentity = getImageIdentity(heroBackdrop.current);
 
   const updateHeroImage = useCallback((nextHero: StoredImage | null) => {
     setHeroBackdrop((state) => {
@@ -1034,7 +1078,7 @@ function TransferAppContent({
         });
 
         if (options.resetHero || !current || !currentStillExists) {
-          const nextHero = pickLatestHeroImage(payload.images);
+          const nextHero = pickPreferredHeroImage(payload.images);
 
           if (isSameImage(current, nextHero)) {
             return state;
@@ -1163,6 +1207,28 @@ function TransferAppContent({
       window.removeEventListener("resize", syncBackgroundState);
     };
   }, [authorized]);
+
+  useEffect(() => {
+    if (!authorized || images.length === 0) {
+      return;
+    }
+
+    const nextHero = currentHeroIdentity
+      ? pickStoredHeroImage(images)
+      : pickPreferredHeroImage(images);
+
+    if (!nextHero || getImageIdentity(nextHero) === currentHeroIdentity) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      updateHeroImage(nextHero);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [authorized, currentHeroIdentity, images, updateHeroImage]);
 
   async function handleLogin(
     password: string,
@@ -1409,13 +1475,17 @@ function TransferAppContent({
           return item.id !== image.id || item.sourceId !== image.sourceId;
         });
 
+        if (isSameImage(image, pickStoredHeroImage([image]))) {
+          writeStoredHeroIdentity(pickPreferredHeroImage(nextImages));
+        }
+
         if (!deletingCurrent && !deletingPrevious) {
           return state;
         }
 
         return {
           current: deletingCurrent
-            ? pickLatestHeroImage(nextImages)
+            ? pickPreferredHeroImage(nextImages)
             : state.current,
           previous: deletingPrevious ? null : state.previous,
           ready: deletingCurrent ? false : state.ready,
@@ -1466,7 +1536,10 @@ function TransferAppContent({
       imageForBackground &&
       !isSameImage(heroBackdrop.current, imageForBackground)
     ) {
+      writeStoredHeroIdentity(imageForBackground);
       updateHeroImage(imageForBackground);
+    } else if (imageForBackground) {
+      writeStoredHeroIdentity(imageForBackground);
     }
   }
 
@@ -1530,10 +1603,13 @@ function TransferAppContent({
           </button>
           <Link
             href="/lite"
+            replace
             prefetch={false}
-            className="flex h-10 items-center justify-center rounded-full px-3 text-sm font-medium text-white/68 transition hover:bg-white/14 hover:text-white"
+            aria-label="极速版"
+            title="极速版"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/68 transition hover:bg-white/14 hover:text-white"
           >
-            lite
+            <DevicePhoneMobileIcon className="size-5" />
           </Link>
           <button
             type="button"
