@@ -74,17 +74,7 @@ html {
     var(--dock-padding-inline) + var(--dock-padding-inline) + 2px
   );
   --dock-bottom-inset: calc(var(--dock-gap) - 1px);
-  margin-top: calc(
-    -1 *
-      (
-        1px + var(--dock-padding-block) +
-          (
-            (100cqw - var(--dock-inline-chrome) - var(--dock-row-gap-total)) /
-              var(--dock-columns) / 1.58
-          ) +
-          var(--dock-bottom-inset)
-      )
-  );
+  margin-top: 0;
 }
 
 @media (min-width: 40rem) {
@@ -93,6 +83,17 @@ html {
     --dock-padding-block: 1rem;
     --dock-padding-inline: 1rem;
     --dock-bottom-inset: calc(var(--dock-gap) - 1px);
+    margin-top: calc(
+      -1 *
+        (
+          1px + var(--dock-padding-block) +
+            (
+              (100cqw - var(--dock-inline-chrome) - var(--dock-row-gap-total)) /
+                var(--dock-columns) / 1.58
+            ) +
+            var(--dock-bottom-inset)
+        )
+    );
   }
 }
 

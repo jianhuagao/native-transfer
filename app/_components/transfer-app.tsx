@@ -1556,8 +1556,8 @@ function TransferAppContent({
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
-      <header className="relative z-40 bg-[#050505] px-4 pt-4 pb-3 sm:contents">
-        <div className="z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
+      <header className="sticky top-0 z-20 bg-[#050505] px-4 pt-4 pb-3 sm:contents">
+        <div className="flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
           <div className="flex min-w-0 items-center gap-2 sm:contents">
             <StorageSourceSelect
               activeSourceId={activeSourceId}
@@ -1624,12 +1624,16 @@ function TransferAppContent({
       </header>
 
       <section
-        className={`relative z-10 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:rounded-none sm:shadow-none ${
+        className={`relative z-30 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
           uploadQueueVisible
             ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
             : "h-dvh"
         }`}
       >
+        <span
+          aria-hidden
+          className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
+        />
         <HeroBackdrop
           blurred={backgroundBlurred}
           currentHero={heroBackdrop.current}
