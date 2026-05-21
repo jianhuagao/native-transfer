@@ -910,7 +910,10 @@ function HeroBackdrop({
   previousHero: StoredImage | null;
 }) {
   return (
-    <div aria-hidden className="fixed inset-0 z-0 overflow-hidden bg-[#050505]">
+    <div
+      aria-hidden
+      className="absolute inset-0 z-0 overflow-hidden bg-[#050505] sm:fixed"
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
       <div
         className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
@@ -1553,86 +1556,87 @@ function TransferAppContent({
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
-      <HeroBackdrop
-        blurred={backgroundBlurred}
-        currentHero={heroBackdrop.current}
-        currentReady={heroBackdrop.ready}
-        onCurrentHeroLoad={handleHeroImageLoad}
-        previousHero={heroBackdrop.previous}
-      />
-
-      <div className="absolute left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
-        <div className="flex min-w-0 items-center gap-2 sm:contents">
-          <StorageSourceSelect
-            activeSourceId={activeSourceId}
-            disabled={switchingSource || historyLoading}
-            sources={sources}
-            onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
-          />
-          <StorageUsageBadge usage={storageUsage} />
-        </div>
-        <div className="flex justify-end gap-2 sm:contents">
-          <button
-            type="button"
-            onClick={openShareUploadDialog}
-            disabled={!activeSourceId || historyLoading}
-            aria-label="生成上传二维码"
-            title="生成上传二维码"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
-          >
-            <QrCodeIcon className="size-5" />
-          </button>
-          {sources.length > 1 ? (
+      <header className="relative z-40 bg-[#050505] px-4 pt-4 pb-3 sm:contents">
+        <div className="z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
+          <div className="flex min-w-0 items-center gap-2 sm:contents">
+            <StorageSourceSelect
+              activeSourceId={activeSourceId}
+              disabled={switchingSource || historyLoading}
+              sources={sources}
+              onChange={(sourceId) => void handleStorageSourceChange(sourceId)}
+            />
+            <StorageUsageBadge usage={storageUsage} />
+          </div>
+          <div className="flex justify-end gap-2 sm:contents">
             <button
               type="button"
-              onClick={() => setTransferModalOpen(true)}
-              aria-label="迁移媒体"
-              title="迁移媒体"
+              onClick={openShareUploadDialog}
+              disabled={!activeSourceId || historyLoading}
+              aria-label="生成上传二维码"
+              title="生成上传二维码"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              <QrCodeIcon className="size-5" />
+            </button>
+            {sources.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => setTransferModalOpen(true)}
+                aria-label="迁移媒体"
+                title="迁移媒体"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
+              >
+                <ArrowsRightLeftIcon className="size-5" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void handleRefreshImages()}
+              disabled={refreshingImages}
+              aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
+              title={refreshingImages ? "刷新中" : "刷新媒体库"}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+            >
+              <ArrowPathIcon
+                className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange("lite")}
+              aria-label="极速版"
+              title="极速版"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/68 transition hover:bg-white/14 hover:text-white"
+            >
+              <DevicePhoneMobileIcon className="size-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              aria-label="退出登录"
+              title="退出登录"
               className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
             >
-              <ArrowsRightLeftIcon className="size-5" />
+              <PowerIcon className="size-5" />
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void handleRefreshImages()}
-            disabled={refreshingImages}
-            aria-label={refreshingImages ? "刷新中" : "刷新媒体库"}
-            title={refreshingImages ? "刷新中" : "刷新媒体库"}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
-          >
-            <ArrowPathIcon
-              className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
-            />
-          </button>
-          <button
-            type="button"
-            onClick={() => onModeChange("lite")}
-            aria-label="极速版"
-            title="极速版"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/68 transition hover:bg-white/14 hover:text-white"
-          >
-            <DevicePhoneMobileIcon className="size-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            aria-label="退出登录"
-            title="退出登录"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/78 transition hover:bg-white/14 hover:text-white"
-          >
-            <PowerIcon className="size-5" />
-          </button>
+          </div>
         </div>
-      </div>
+      </header>
 
       <section
-        className={`relative z-10 flex transition-[height,min-height] duration-300 ${
+        className={`relative z-10 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:rounded-none sm:shadow-none ${
           uploadQueueVisible
             ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
             : "h-dvh"
         }`}
       >
+        <HeroBackdrop
+          blurred={backgroundBlurred}
+          currentHero={heroBackdrop.current}
+          currentReady={heroBackdrop.ready}
+          onCurrentHeroLoad={handleHeroImageLoad}
+          previousHero={heroBackdrop.previous}
+        />
         <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
           <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
             <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
