@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 
@@ -12,19 +12,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Native Transfer",
   description: "Personal image transfer site",
-  appleWebApp: {
-    capable: true,
-    title: "Native Transfer",
-    statusBarStyle: "black-translucent",
-  },
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-  themeColor: "#050505",
-  colorScheme: "dark",
 };
 
 export default function RootLayout({

@@ -49,28 +49,6 @@ img {
   max-width: 100%;
 }
 
-.nt-safe-floating-toolbar {
-  top: calc(1rem + env(safe-area-inset-top, 0px));
-}
-
-.nt-safe-hero-content {
-  padding-top: calc(6rem + env(safe-area-inset-top, 0px));
-}
-
-.nt-safe-sticky-header {
-  padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
-}
-
-@media (min-width: 40rem) {
-  .nt-safe-floating-toolbar {
-    top: calc(1.5rem + env(safe-area-inset-top, 0px));
-  }
-
-  .nt-safe-hero-content {
-    padding-top: calc(7rem + env(safe-area-inset-top, 0px));
-  }
-}
-
 ::selection {
   background: rgba(152, 218, 255, 0.32);
   color: white;
