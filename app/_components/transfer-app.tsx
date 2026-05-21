@@ -1623,7 +1623,17 @@ function TransferAppContent({
         </div>
       </header>
 
-      <div className="relative z-30 overflow-hidden rounded-t-[32px] bg-[#050505] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] sm:static sm:z-auto sm:overflow-visible sm:rounded-none sm:bg-transparent sm:shadow-none">
+      <section
+        className={`relative z-30 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
+          uploadQueueVisible
+            ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
+            : "h-dvh"
+        }`}
+      >
+        <span
+          aria-hidden
+          className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
+        />
         <HeroBackdrop
           blurred={backgroundBlurred}
           currentHero={heroBackdrop.current}
@@ -1631,52 +1641,39 @@ function TransferAppContent({
           onCurrentHeroLoad={handleHeroImageLoad}
           previousHero={heroBackdrop.previous}
         />
-
-        <section
-          className={`relative z-10 flex transition-[height,min-height] duration-300 ${
-            uploadQueueVisible
-              ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
-              : "h-dvh"
-          }`}
-        >
-          <span
-            aria-hidden
-            className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
-          />
-          <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
-            <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
-              <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
-              <div className="relative z-40 mt-14">
-                <TransferUploadPanel
-                  onQueueVisibilityChange={setUploadQueueVisible}
-                  onUploaded={refreshImages}
-                  sourceId={activeSourceId}
-                  sourcePrefix={activeSource?.prefix ?? "uploads/"}
-                  uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
-                />
-              </div>
-              {pageError ? (
-                <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
-                  {pageError}
-                </p>
-              ) : null}
+        <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
+          <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
+            <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
+            <div className="relative z-40 mt-14">
+              <TransferUploadPanel
+                onQueueVisibilityChange={setUploadQueueVisible}
+                onUploaded={refreshImages}
+                sourceId={activeSourceId}
+                sourcePrefix={activeSource?.prefix ?? "uploads/"}
+                uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
+              />
             </div>
+            {pageError ? (
+              <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
+                {pageError}
+              </p>
+            ) : null}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <MediaShelf
-          deletingId={deletingId}
-          hasMore={hasMoreImages}
-          historyLoading={historyLoading}
-          images={images}
-          loadingMore={loadingMoreImages}
-          onCopyImage={handleCopyLink}
-          onDeleteImage={handleDelete}
-          onDownloadImage={handleDownload}
-          onLoadMore={() => void handleLoadMoreImages()}
-          onOpenImage={openImageViewer}
-        />
-      </div>
+      <MediaShelf
+        deletingId={deletingId}
+        hasMore={hasMoreImages}
+        historyLoading={historyLoading}
+        images={images}
+        loadingMore={loadingMoreImages}
+        onCopyImage={handleCopyLink}
+        onDeleteImage={handleDelete}
+        onDownloadImage={handleDownload}
+        onLoadMore={() => void handleLoadMoreImages()}
+        onOpenImage={openImageViewer}
+      />
 
       {selectedImage ? (
         <ImageViewerModal
