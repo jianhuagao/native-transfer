@@ -1561,7 +1561,7 @@ function TransferAppContent({
         previousHero={heroBackdrop.previous}
       />
 
-      <div className="absolute left-4 right-4 top-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:top-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
+      <div className="nt-safe-floating-toolbar absolute left-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-black/28 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:left-auto sm:right-6 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full">
         <div className="flex min-w-0 items-center gap-2 sm:contents">
           <StorageSourceSelect
             activeSourceId={activeSourceId}
@@ -1633,7 +1633,7 @@ function TransferAppContent({
             : "h-dvh"
         }`}
       >
-        <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
+        <div className="nt-safe-hero-content relative z-20 flex w-full flex-col px-5 pb-56 sm:px-8 sm:pb-64 lg:px-14">
           <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
             <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
             <div className="relative z-40 mt-14">

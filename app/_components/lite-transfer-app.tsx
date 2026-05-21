@@ -521,7 +521,7 @@ function LiteTransferAppContent({
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#050505]/94 px-3 py-2 backdrop-blur">
+      <header className="nt-safe-sticky-header sticky top-0 z-30 border-b border-white/10 bg-[#050505]/94 px-3 py-2 backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
           <StorageSourceSelect
             activeSourceId={activeSourceId}
