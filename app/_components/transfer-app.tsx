@@ -1013,8 +1013,36 @@ function TransferAppContent({
   const [shareError, setShareError] = useState("");
   const [uploadQueueVisible, setUploadQueueVisible] = useState(false);
   const [backgroundBlurred, setBackgroundBlurred] = useState(false);
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
+  const [mobileSheetLocked, setMobileSheetLocked] = useState(false);
   const activeSource = sources.find((source) => source.id === activeSourceId);
   const currentHeroIdentity = getImageIdentity(heroBackdrop.current);
+
+  useEffect(() => {
+    if (!authorized) {
+      return;
+    }
+
+    function updateMobileSheetLock() {
+      if (window.matchMedia("(min-width: 40rem)").matches) {
+        setMobileSheetLocked(false);
+        return;
+      }
+
+      const sheetTop = mobileSheetRef.current?.getBoundingClientRect().top;
+      setMobileSheetLocked(sheetTop !== undefined && sheetTop <= 0.5);
+    }
+
+    const frame = window.requestAnimationFrame(updateMobileSheetLock);
+    window.addEventListener("scroll", updateMobileSheetLock, { passive: true });
+    window.addEventListener("resize", updateMobileSheetLock);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", updateMobileSheetLock);
+      window.removeEventListener("resize", updateMobileSheetLock);
+    };
+  }, [authorized]);
 
   const updateHeroImage = useCallback((nextHero: StoredImage | null) => {
     setHeroBackdrop((state) => {
@@ -1631,22 +1659,29 @@ function TransferAppContent({
 
       <div aria-hidden className="h-32 bg-[#050505] sm:hidden" />
 
-      <div className="relative z-30 sm:static sm:z-auto">
-        <div className="sticky top-0 z-0 h-dvh overflow-hidden rounded-t-[32px] bg-[#050505] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] sm:absolute sm:inset-0 sm:h-0 sm:overflow-visible sm:rounded-none sm:bg-transparent sm:shadow-none">
-          <HeroBackdrop
-            blurred={backgroundBlurred}
-            currentHero={heroBackdrop.current}
-            currentReady={heroBackdrop.ready}
-            onCurrentHeroLoad={handleHeroImageLoad}
-            previousHero={heroBackdrop.previous}
-          />
-          <span
-            aria-hidden
-            className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
-          />
-        </div>
+      <div
+        ref={mobileSheetRef}
+        className="relative z-30 h-dvh overflow-hidden rounded-t-[32px] bg-[#050505] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] sm:static sm:z-auto sm:h-auto sm:overflow-visible sm:rounded-none sm:bg-transparent sm:shadow-none"
+      >
+        <HeroBackdrop
+          blurred={backgroundBlurred}
+          currentHero={heroBackdrop.current}
+          currentReady={heroBackdrop.ready}
+          onCurrentHeroLoad={handleHeroImageLoad}
+          previousHero={heroBackdrop.previous}
+        />
+        <span
+          aria-hidden
+          className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
+        />
 
-        <div className="relative z-10 -mt-[100dvh] sm:mt-0">
+        <div
+          className={`relative z-10 h-full sm:contents ${
+            mobileSheetLocked
+              ? "overflow-y-auto [-webkit-overflow-scrolling:touch]"
+              : "overflow-hidden"
+          }`}
+        >
           <section
             className={`relative z-10 flex transition-[height,min-height] duration-300 ${
               uploadQueueVisible
