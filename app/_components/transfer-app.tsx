@@ -1555,8 +1555,8 @@ function TransferAppContent({
   }
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
-      <header className="sticky top-0 z-20 bg-[#050505] px-4 pt-4 pb-3 sm:contents">
+    <main className="relative min-h-dvh overflow-x-hidden bg-[#050505] text-white">
+      <header className="sticky top-0 z-20 bg-[#050505]/58 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top,0px))] backdrop-blur-2xl sm:contents sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <div className="flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
           <div className="flex min-w-0 items-center gap-2 sm:contents">
             <StorageSourceSelect
@@ -1630,10 +1630,6 @@ function TransferAppContent({
             : "h-dvh"
         }`}
       >
-        <span
-          aria-hidden
-          className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
-        />
         <HeroBackdrop
           blurred={backgroundBlurred}
           currentHero={heroBackdrop.current}
