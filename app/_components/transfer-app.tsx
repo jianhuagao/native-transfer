@@ -914,37 +914,43 @@ function HeroBackdrop({
       aria-hidden
       className="absolute inset-0 z-0 overflow-hidden bg-[#050505] sm:fixed"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
-      <div
-        className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
-        style={{ backgroundImage: `url("${HERO_IMAGE_PLACEHOLDER}")` }}
-      />
-      {currentHero?.mediaType === "image" ? (
-        <div className="absolute inset-0">
-          {previousHero?.mediaType === "image" ? (
-            <div className="absolute inset-0 z-0">
-              <HeroImageLayer blurred={blurred} image={previousHero} visible />
+      <div className="sticky top-0 h-dvh overflow-hidden sm:absolute sm:inset-0 sm:h-auto">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
+        <div
+          className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
+          style={{ backgroundImage: `url("${HERO_IMAGE_PLACEHOLDER}")` }}
+        />
+        {currentHero?.mediaType === "image" ? (
+          <div className="absolute inset-0">
+            {previousHero?.mediaType === "image" ? (
+              <div className="absolute inset-0 z-0">
+                <HeroImageLayer
+                  blurred={blurred}
+                  image={previousHero}
+                  visible
+                />
+              </div>
+            ) : null}
+            <div className="absolute inset-0 z-10">
+              <HeroImageLayer
+                key={getImageIdentity(currentHero)}
+                blurred={blurred}
+                image={currentHero}
+                onLoad={onCurrentHeroLoad}
+                priority
+                visible={currentReady}
+              />
             </div>
-          ) : null}
-          <div className="absolute inset-0 z-10">
-            <HeroImageLayer
-              key={getImageIdentity(currentHero)}
-              blurred={blurred}
-              image={currentHero}
-              onLoad={onCurrentHeroLoad}
-              priority
-              visible={currentReady}
-            />
           </div>
-        </div>
-      ) : null}
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.28)_36%,rgba(0,0,0,0.04)_68%,rgba(0,0,0,0.32)_100%)]" />
-      <div
-        className={`absolute inset-0 transition duration-1000 ${
-          blurred ? "bg-black/38 backdrop-blur-md" : "bg-black/0"
-        }`}
-      />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)]" />
+        ) : null}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.28)_36%,rgba(0,0,0,0.04)_68%,rgba(0,0,0,0.32)_100%)]" />
+        <div
+          className={`absolute inset-0 transition duration-1000 ${
+            blurred ? "bg-black/38 backdrop-blur-md" : "bg-black/0"
+          }`}
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)]" />
+      </div>
     </div>
   );
 }
@@ -1556,7 +1562,7 @@ function TransferAppContent({
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#050505] text-white">
-      <header className="sticky top-0 z-20 bg-[#050505] px-4 pt-4 pb-3 sm:contents">
+      <header className="fixed inset-x-0 top-0 z-20 bg-[#050505] px-4 pt-4 pb-3 sm:static sm:contents sm:bg-transparent sm:p-0">
         <div className="flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
           <div className="flex min-w-0 items-center gap-2 sm:contents">
             <StorageSourceSelect
@@ -1623,13 +1629,9 @@ function TransferAppContent({
         </div>
       </header>
 
-      <section
-        className={`relative z-30 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
-          uploadQueueVisible
-            ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
-            : "h-dvh"
-        }`}
-      >
+      <div aria-hidden className="h-32 bg-[#050505] sm:hidden" />
+
+      <div className="relative z-30 overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] sm:static sm:z-auto sm:overflow-visible sm:rounded-none sm:shadow-none">
         <span
           aria-hidden
           className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
@@ -1641,39 +1643,48 @@ function TransferAppContent({
           onCurrentHeroLoad={handleHeroImageLoad}
           previousHero={heroBackdrop.previous}
         />
-        <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
-          <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
-            <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
-            <div className="relative z-40 mt-14">
-              <TransferUploadPanel
-                onQueueVisibilityChange={setUploadQueueVisible}
-                onUploaded={refreshImages}
-                sourceId={activeSourceId}
-                sourcePrefix={activeSource?.prefix ?? "uploads/"}
-                uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
-              />
-            </div>
-            {pageError ? (
-              <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
-                {pageError}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </section>
 
-      <MediaShelf
-        deletingId={deletingId}
-        hasMore={hasMoreImages}
-        historyLoading={historyLoading}
-        images={images}
-        loadingMore={loadingMoreImages}
-        onCopyImage={handleCopyLink}
-        onDeleteImage={handleDelete}
-        onDownloadImage={handleDownload}
-        onLoadMore={() => void handleLoadMoreImages()}
-        onOpenImage={openImageViewer}
-      />
+        <section
+          className={`relative z-10 flex transition-[height,min-height] duration-300 ${
+            uploadQueueVisible
+              ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
+              : "h-dvh"
+          }`}
+        >
+          <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
+            <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
+              <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
+              <div className="relative z-40 mt-14">
+                <TransferUploadPanel
+                  onQueueVisibilityChange={setUploadQueueVisible}
+                  onUploaded={refreshImages}
+                  sourceId={activeSourceId}
+                  sourcePrefix={activeSource?.prefix ?? "uploads/"}
+                  uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
+                />
+              </div>
+              {pageError ? (
+                <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
+                  {pageError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <MediaShelf
+          deletingId={deletingId}
+          hasMore={hasMoreImages}
+          historyLoading={historyLoading}
+          images={images}
+          loadingMore={loadingMoreImages}
+          onCopyImage={handleCopyLink}
+          onDeleteImage={handleDelete}
+          onDownloadImage={handleDownload}
+          onLoadMore={() => void handleLoadMoreImages()}
+          onOpenImage={openImageViewer}
+        />
+      </div>
 
       {selectedImage ? (
         <ImageViewerModal
