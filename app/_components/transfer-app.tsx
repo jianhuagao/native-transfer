@@ -1556,7 +1556,7 @@ function TransferAppContent({
 
   return (
     <main className="relative min-h-dvh overflow-x-hidden bg-[#050505] text-white">
-      <header className="sticky top-0 z-20 bg-[#050505]/58 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top,0px))] backdrop-blur-2xl sm:contents sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <header className="absolute inset-x-0 top-0 z-40 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:contents sm:p-0">
         <div className="flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
           <div className="flex min-w-0 items-center gap-2 sm:contents">
             <StorageSourceSelect
@@ -1624,7 +1624,7 @@ function TransferAppContent({
       </header>
 
       <section
-        className={`relative z-30 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
+        className={`relative z-30 flex overflow-hidden transition-[height,min-height] duration-300 sm:z-10 ${
           uploadQueueVisible
             ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
             : "h-dvh"

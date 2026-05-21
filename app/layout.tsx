@@ -12,6 +12,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Native Transfer",
   description: "Personal image transfer site",
+  appleWebApp: {
+    capable: true,
+    title: "Native Transfer",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
