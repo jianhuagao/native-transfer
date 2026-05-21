@@ -1,4 +1,4 @@
-import { TransferApp } from "@/app/_components/transfer-app";
+import { TransferModeShell } from "@/app/_components/transfer-mode-shell";
 import { isAuthorized } from "@/app/_lib/auth";
 import { getImagesPayload } from "@/app/_lib/storage";
 
@@ -7,7 +7,7 @@ export default async function Home() {
   const initialPayload = authorized ? await getImagesPayload() : null;
 
   return (
-    <TransferApp
+    <TransferModeShell
       initialAuthorized={authorized}
       initialPayload={initialPayload}
     />

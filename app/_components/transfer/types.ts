@@ -45,7 +45,11 @@ export type ImagesPayload = {
   storageUsage: StorageUsage;
 };
 
+export type TransferViewMode = "full" | "lite";
+
 export type TransferAppProps = {
   initialAuthorized: boolean;
   initialPayload: ImagesPayload | null;
+  onAuthorizedChange?: (authorized: boolean) => void;
+  onModeChange: (mode: TransferViewMode) => void;
 };

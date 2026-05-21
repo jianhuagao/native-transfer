@@ -31,7 +31,6 @@ import {
 } from "@heroicons/react/24/solid";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import {
   memo,
@@ -954,6 +953,8 @@ export function TransferApp(props: TransferAppProps) {
 function TransferAppContent({
   initialAuthorized,
   initialPayload,
+  onAuthorizedChange,
+  onModeChange,
 }: TransferAppProps) {
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [authNotice, setAuthNotice] = useState("");
@@ -1250,13 +1251,15 @@ function TransferAppContent({
       }
 
       if (options.liteMode) {
-        window.location.assign("/lite");
+        onAuthorizedChange?.(true);
+        onModeChange("lite");
         return null;
       }
 
       setHistoryLoading(true);
       setNeedsInitialFetch(true);
       setAuthorized(true);
+      onAuthorizedChange?.(true);
       return null;
     } catch {
       return "网络异常，请稍后重试。";
@@ -1280,6 +1283,7 @@ function TransferAppContent({
     updateHeroImage(null);
     setSelectedImage(null);
     setBackgroundBlurred(false);
+    onAuthorizedChange?.(false);
   }
 
   const refreshImages = useCallback(
@@ -1601,16 +1605,15 @@ function TransferAppContent({
               className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
             />
           </button>
-          <Link
-            href="/lite"
-            replace
-            prefetch={false}
+          <button
+            type="button"
+            onClick={() => onModeChange("lite")}
             aria-label="极速版"
             title="极速版"
             className="flex h-10 w-10 items-center justify-center rounded-full text-white/68 transition hover:bg-white/14 hover:text-white"
           >
             <DevicePhoneMobileIcon className="size-5" />
-          </Link>
+          </button>
           <button
             type="button"
             onClick={() => void handleLogout()}

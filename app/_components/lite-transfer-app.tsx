@@ -33,7 +33,6 @@ import {
 } from "@heroicons/react/24/solid";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
 import {
   startTransition,
   useCallback,
@@ -134,6 +133,8 @@ export function LiteTransferApp(props: TransferAppProps) {
 function LiteTransferAppContent({
   initialAuthorized,
   initialPayload,
+  onAuthorizedChange,
+  onModeChange,
 }: TransferAppProps) {
   const [authorized, setAuthorized] = useState(initialAuthorized);
   const [authNotice, setAuthNotice] = useState("");
@@ -226,13 +227,15 @@ function LiteTransferAppContent({
       }
 
       if (!options.liteMode) {
-        window.location.assign("/");
+        onAuthorizedChange?.(true);
+        onModeChange("full");
         return null;
       }
 
       setHistoryLoading(true);
       setNeedsInitialFetch(true);
       setAuthorized(true);
+      onAuthorizedChange?.(true);
       return null;
     } catch {
       return "网络异常，请稍后重试。";
@@ -254,6 +257,7 @@ function LiteTransferAppContent({
     setNextImagesCursor(null);
     setNeedsInitialFetch(true);
     setSelectedImage(null);
+    onAuthorizedChange?.(false);
   }
 
   useEffect(() => {
@@ -564,16 +568,15 @@ function LiteTransferAppContent({
                 className={`size-5 ${refreshingImages ? "animate-spin" : ""}`}
               />
             </button>
-            <Link
-              href="/"
-              replace
-              prefetch={false}
+            <button
+              type="button"
+              onClick={() => onModeChange("full")}
               aria-label="完整版"
               title="完整版"
               className="flex size-9 items-center justify-center rounded-lg text-white/78 transition hover:bg-white/10 hover:text-white"
             >
               <ComputerDesktopIcon className="size-5" />
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => void handleLogout()}
