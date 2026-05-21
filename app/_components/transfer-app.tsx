@@ -914,7 +914,7 @@ function HeroBackdrop({
       aria-hidden
       className="absolute inset-0 z-0 overflow-hidden bg-[#050505] sm:fixed"
     >
-      <div className="sticky top-0 h-dvh overflow-hidden sm:absolute sm:inset-0 sm:h-auto">
+      <div className="absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_22%,rgba(255,255,255,0.12),transparent_25%),linear-gradient(135deg,#101216_0%,#0d1117_44%,#050505_100%)]" />
         <div
           className="absolute -inset-8 scale-105 bg-cover bg-center opacity-80 blur-2xl"
@@ -1631,59 +1631,63 @@ function TransferAppContent({
 
       <div aria-hidden className="h-32 bg-[#050505] sm:hidden" />
 
-      <div className="relative z-30 overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] sm:static sm:z-auto sm:overflow-visible sm:rounded-none sm:shadow-none">
-        <span
-          aria-hidden
-          className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
-        />
-        <HeroBackdrop
-          blurred={backgroundBlurred}
-          currentHero={heroBackdrop.current}
-          currentReady={heroBackdrop.ready}
-          onCurrentHeroLoad={handleHeroImageLoad}
-          previousHero={heroBackdrop.previous}
-        />
+      <div className="relative z-30 sm:static sm:z-auto">
+        <div className="sticky top-0 z-0 h-dvh overflow-hidden rounded-t-[32px] bg-[#050505] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] sm:absolute sm:inset-0 sm:h-0 sm:overflow-visible sm:rounded-none sm:bg-transparent sm:shadow-none">
+          <HeroBackdrop
+            blurred={backgroundBlurred}
+            currentHero={heroBackdrop.current}
+            currentReady={heroBackdrop.ready}
+            onCurrentHeroLoad={handleHeroImageLoad}
+            previousHero={heroBackdrop.previous}
+          />
+          <span
+            aria-hidden
+            className="absolute left-1/2 top-3 z-30 h-1 w-12 -translate-x-1/2 rounded-full bg-white/76 shadow-[0_1px_10px_rgba(0,0,0,0.28)] sm:hidden"
+          />
+        </div>
 
-        <section
-          className={`relative z-10 flex transition-[height,min-height] duration-300 ${
-            uploadQueueVisible
-              ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
-              : "h-dvh"
-          }`}
-        >
-          <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
-            <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
-              <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
-              <div className="relative z-40 mt-14">
-                <TransferUploadPanel
-                  onQueueVisibilityChange={setUploadQueueVisible}
-                  onUploaded={refreshImages}
-                  sourceId={activeSourceId}
-                  sourcePrefix={activeSource?.prefix ?? "uploads/"}
-                  uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
-                />
+        <div className="relative z-10 -mt-[100dvh] sm:mt-0">
+          <section
+            className={`relative z-10 flex transition-[height,min-height] duration-300 ${
+              uploadQueueVisible
+                ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
+                : "h-dvh"
+            }`}
+          >
+            <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
+              <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
+                <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
+                <div className="relative z-40 mt-14">
+                  <TransferUploadPanel
+                    onQueueVisibilityChange={setUploadQueueVisible}
+                    onUploaded={refreshImages}
+                    sourceId={activeSourceId}
+                    sourcePrefix={activeSource?.prefix ?? "uploads/"}
+                    uploadMode={activeSource?.uploadMode ?? DEFAULT_UPLOAD_MODE}
+                  />
+                </div>
+                {pageError ? (
+                  <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
+                    {pageError}
+                  </p>
+                ) : null}
               </div>
-              {pageError ? (
-                <p className="mt-4 max-w-sm rounded-2xl border border-rose-300/18 bg-rose-950/35 px-4 py-3 text-sm text-rose-100 backdrop-blur-xl">
-                  {pageError}
-                </p>
-              ) : null}
             </div>
-          </div>
-        </section>
+          </section>
 
-        <MediaShelf
-          deletingId={deletingId}
-          hasMore={hasMoreImages}
-          historyLoading={historyLoading}
-          images={images}
-          loadingMore={loadingMoreImages}
-          onCopyImage={handleCopyLink}
-          onDeleteImage={handleDelete}
-          onDownloadImage={handleDownload}
-          onLoadMore={() => void handleLoadMoreImages()}
-          onOpenImage={openImageViewer}
-        />
+          <MediaShelf
+            deletingId={deletingId}
+            hasMore={hasMoreImages}
+            historyLoading={historyLoading}
+            images={images}
+            loadingMore={loadingMoreImages}
+            onCopyImage={handleCopyLink}
+            onDeleteImage={handleDelete}
+            onDownloadImage={handleDownload}
+            onLoadMore={() => void handleLoadMoreImages()}
+            onOpenImage={openImageViewer}
+          />
+        </div>
       </div>
 
       {selectedImage ? (
