@@ -10,12 +10,10 @@ import {
 import { uploadMedia } from "@/app/_lib/client-upload";
 import { MediaPreview } from "@/app/_components/transfer/media-preview";
 import {
-  buildThumbnailPath,
   buildUploadPath,
   formatFileSize,
   isTouchLikeDevice,
 } from "@/app/_components/transfer/utils";
-import { createImageThumbnail } from "@/app/_lib/client-thumbnail";
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -45,7 +43,6 @@ type TransferUploadPanelProps = {
 type UploadQueueStatus =
   | "queued"
   | "uploading"
-  | "thumbnail"
   | "done"
   | "error"
   | "cancelled";
@@ -85,10 +82,6 @@ function getUploadStatusLabel(status: UploadQueueStatus) {
 
   if (status === "uploading") {
     return "上传中";
-  }
-
-  if (status === "thumbnail") {
-    return "生成缩略图";
   }
 
   if (status === "done") {
@@ -148,7 +141,7 @@ export function TransferUploadPanel({
   const [recentMediaType, setRecentMediaType] = useState<MediaKind>("image");
 
   const activeItem = queue.find(
-    (item) => item.status === "uploading" || item.status === "thumbnail",
+    (item) => item.status === "uploading",
   );
   const queuedCount = queue.filter((item) => item.status === "queued").length;
   const failedCount = queue.filter((item) => item.status === "error").length;
@@ -345,40 +338,6 @@ export function TransferUploadPanel({
         throw new DOMException("Upload cancelled", "AbortError");
       }
 
-      if (item.mediaType === "image") {
-        markItem(item.id, {
-          progress: 100,
-          status: "thumbnail",
-          statusText: "生成缩略图",
-        });
-
-        try {
-          const thumbnail = await createImageThumbnail(item.file);
-
-          if (thumbnail && !controller.signal.aborted) {
-            await uploadMedia({
-              file: thumbnail,
-              shareToken,
-              sourceId,
-              uploadMode,
-              uploadEndpoint,
-              pathname: buildThumbnailPath(pathname, sourcePrefix),
-              signal: controller.signal,
-              onProgress: () => {
-                return;
-              },
-            });
-          }
-        } catch (error) {
-          if (isAbortError(error)) {
-            throw error;
-          }
-
-          // The original file is already stored; missing thumbnails fall back to
-          // the protected original preview route.
-        }
-      }
-
       if (controller.signal.aborted) {
         throw new DOMException("Upload cancelled", "AbortError");
       }
@@ -480,7 +439,7 @@ export function TransferUploadPanel({
   function cancelItem(item: UploadQueueItem) {
     if (
       activeUploadRef.current?.id === item.id &&
-      (item.status === "uploading" || item.status === "thumbnail")
+      item.status === "uploading"
     ) {
       activeUploadRef.current.controller.abort();
       return;
@@ -773,8 +732,7 @@ export function TransferUploadPanel({
                       </button>
                     ) : null}
                     {item.status === "queued" ||
-                    item.status === "uploading" ||
-                    item.status === "thumbnail" ? (
+                    item.status === "uploading" ? (
                       <button
                         type="button"
                         onClick={() => cancelItem(item)}

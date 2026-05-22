@@ -63,24 +63,6 @@ export function buildUploadPath(
   return `${prefix}${stamp}-${baseName}${extension}`;
 }
 
-export function buildThumbnailPath(pathname: string, prefix = "uploads/") {
-  const normalized = pathname.replaceAll("\\", "/").replace(/^\/+/, "");
-  const relativePath = normalized.startsWith(prefix)
-    ? normalized.slice(prefix.length)
-    : normalized;
-  const slashIndex = relativePath.lastIndexOf("/");
-  const directory = slashIndex >= 0 ? relativePath.slice(0, slashIndex) : "";
-  const fileName =
-    slashIndex >= 0 ? relativePath.slice(slashIndex + 1) : relativePath;
-  const dotIndex = fileName.lastIndexOf(".");
-  const baseName = dotIndex > 0 ? fileName.slice(0, dotIndex) : fileName;
-  const thumbnailDirectory = `${prefix}~thumbs${
-    directory ? `/${directory}` : ""
-  }`;
-
-  return `${thumbnailDirectory}/${baseName || "media"}.jpg`;
-}
-
 export function buildDeleteImagePath(image: {
   id: string;
   sourceId?: string | null;
