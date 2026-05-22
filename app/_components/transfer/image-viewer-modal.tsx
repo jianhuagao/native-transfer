@@ -15,9 +15,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/solid";
 import type { StoredImage } from "@/app/_components/transfer/types";
-import {
-  formatFileSize,
-} from "@/app/_components/transfer/utils";
+import { formatFileSize } from "@/app/_components/transfer/utils";
 import {
   TransformComponent,
   TransformWrapper,
@@ -93,7 +91,7 @@ export function ImageViewerModal({
   allowOriginalPreview = true,
   deletingId,
   images,
-  previewQuality = 82,
+  previewQuality = 78,
   selectedImage,
   onClose,
   onCopyLink,

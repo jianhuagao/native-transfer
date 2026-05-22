@@ -37,6 +37,7 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -144,7 +145,8 @@ function pickStoredHeroImage(images: StoredImage[]) {
   return (
     images.find((image) => {
       return (
-        image.mediaType === "image" && getImageIdentity(image) === storedIdentity
+        image.mediaType === "image" &&
+        getImageIdentity(image) === storedIdentity
       );
     }) ?? null
   );
@@ -680,7 +682,7 @@ const MediaTile = memo(function MediaTile({
 
 function MediaSkeletonGrid({ count }: { count: number }) {
   return (
-    <div className="grid gap-4" style={MEDIA_GRID_STYLE}>
+    <div data-media-grid className="grid gap-4" style={MEDIA_GRID_STYLE}>
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
@@ -717,6 +719,9 @@ const MediaShelf = memo(function MediaShelf({
   const [activeQuickActionKey, setActiveQuickActionKey] = useState("");
   const [copiedImageKey, setCopiedImageKey] = useState("");
   const [deleteConfirmKey, setDeleteConfirmKey] = useState("");
+  const [initialTopOffset, setInitialTopOffset] = useState(0);
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const measuredInitialOffsetRef = useRef(false);
   const copiedTimerRef = useRef<number | null>(null);
   const deleteConfirmTimerRef = useRef<number | null>(null);
 
@@ -787,68 +792,105 @@ const MediaShelf = memo(function MediaShelf({
     };
   }, []);
 
+  useLayoutEffect(() => {
+    if (measuredInitialOffsetRef.current) {
+      return;
+    }
+
+    const dock = dockRef.current;
+
+    if (!dock || !window.matchMedia("(min-width: 40rem)").matches) {
+      measuredInitialOffsetRef.current = true;
+      return;
+    }
+
+    const grid = dock.querySelector<HTMLElement>("[data-media-grid]");
+    const firstItem = grid?.firstElementChild as HTMLElement | null;
+
+    if (!grid || !firstItem) {
+      return;
+    }
+
+    const dockStyle = window.getComputedStyle(dock);
+    const gridStyle = window.getComputedStyle(grid);
+    const borderTopWidth = parseFloat(dockStyle.borderTopWidth) || 0;
+    const paddingTop = parseFloat(dockStyle.paddingTop) || 0;
+    const rowGap = parseFloat(gridStyle.rowGap) || 0;
+    const offset =
+      borderTopWidth + paddingTop + firstItem.offsetHeight + rowGap - 1;
+
+    setInitialTopOffset(-Math.max(0, offset));
+    measuredInitialOffsetRef.current = true;
+  }, [historyLoading, images.length]);
+
   return (
     <section className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-[34rem] h-[46rem] bg-[linear-gradient(180deg,rgba(5,5,5,0)_0%,rgba(5,5,5,0.06)_24%,rgba(5,5,5,0.22)_48%,rgba(5,5,5,0.58)_72%,rgba(5,5,5,0.9)_90%,#050505_100%)] sm:hidden"
+        className="pointer-events-none absolute inset-x-0 -top-136 h-184 bg-[linear-gradient(180deg,rgba(5,5,5,0)_0%,rgba(5,5,5,0.06)_24%,rgba(5,5,5,0.22)_48%,rgba(5,5,5,0.58)_72%,rgba(5,5,5,0.9)_90%,#050505_100%)] sm:hidden"
       />
-      <div className="nt-media-frame relative z-10 mx-auto max-w-420">
-        <div className="nt-media-positioner">
-          <div
-            data-dock-rail
-            className="nt-media-dock rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-4xl sm:px-4 sm:py-4"
-          >
-            {historyLoading ? (
-              <MediaSkeletonGrid count={10} />
-            ) : images.length > 0 ? (
-              <>
-                <div className="grid gap-4" style={MEDIA_GRID_STYLE}>
-                  {images.map((image) => (
-                    <MediaTile
-                      key={image.id}
-                      active={activeQuickActionKey === getStoredImageKey(image)}
-                      copied={copiedImageKey === getStoredImageKey(image)}
-                      deleteConfirming={
-                        deleteConfirmKey === getStoredImageKey(image)
-                      }
-                      deleting={deletingId === image.id}
-                      image={image}
-                      onActivateActions={handleActivateActions}
-                      onClearActions={handleClearActions}
-                      onCopyImage={(quickImage) => {
-                        void handleQuickCopy(quickImage);
-                      }}
-                      onDeleteImage={(quickImage) => {
-                        void handleQuickDelete(quickImage);
-                      }}
-                      onDownloadImage={onDownloadImage}
-                      onOpenImage={onOpenImage}
-                    />
-                  ))}
-                </div>
-                {hasMore ? (
-                  <div className="mt-4 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={onLoadMore}
-                      disabled={loadingMore}
-                      className="inline-flex h-10 items-center gap-2 rounded-full border border-white/12 bg-black/24 px-4 text-sm font-medium text-white/78 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
-                    >
-                      {loadingMore ? (
-                        <ArrowPathIcon className="size-4 animate-spin" />
-                      ) : null}
-                      {loadingMore ? "加载中" : "加载更多"}
-                    </button>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62 sm:h-28 lg:h-32">
-                暂无媒体
+      <div
+        className="relative z-10 mx-auto max-w-420"
+        style={{ marginTop: initialTopOffset }}
+      >
+        <div
+          ref={dockRef}
+          data-dock-rail
+          className="nt-media-dock rounded-[28px] border border-white/18 bg-white/12 px-3 py-3 shadow-[0_28px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl sm:rounded-4xl sm:px-4 sm:py-4"
+        >
+          {historyLoading ? (
+            <MediaSkeletonGrid count={10} />
+          ) : images.length > 0 ? (
+            <>
+              <div
+                data-media-grid
+                className="grid gap-4"
+                style={MEDIA_GRID_STYLE}
+              >
+                {images.map((image) => (
+                  <MediaTile
+                    key={image.id}
+                    active={activeQuickActionKey === getStoredImageKey(image)}
+                    copied={copiedImageKey === getStoredImageKey(image)}
+                    deleteConfirming={
+                      deleteConfirmKey === getStoredImageKey(image)
+                    }
+                    deleting={deletingId === image.id}
+                    image={image}
+                    onActivateActions={handleActivateActions}
+                    onClearActions={handleClearActions}
+                    onCopyImage={(quickImage) => {
+                      void handleQuickCopy(quickImage);
+                    }}
+                    onDeleteImage={(quickImage) => {
+                      void handleQuickDelete(quickImage);
+                    }}
+                    onDownloadImage={onDownloadImage}
+                    onOpenImage={onOpenImage}
+                  />
+                ))}
               </div>
-            )}
-          </div>
+              {hasMore ? (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={onLoadMore}
+                    disabled={loadingMore}
+                    className="inline-flex h-10 items-center gap-2 rounded-full border border-white/12 bg-black/24 px-4 text-sm font-medium text-white/78 transition hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-55"
+                  >
+                    {loadingMore ? (
+                      <ArrowPathIcon className="size-4 animate-spin" />
+                    ) : null}
+                    {loadingMore ? "加载中" : "加载更多"}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex h-24 items-center justify-center rounded-[22px] border border-dashed border-white/16 bg-black/22 text-sm text-white/62 sm:h-28 lg:h-32">
+              暂无媒体
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -1208,12 +1250,10 @@ function TransferAppContent({
 
     syncBackgroundState();
     window.addEventListener("scroll", syncBackgroundState, { passive: true });
-    window.addEventListener("resize", syncBackgroundState);
 
     return () => {
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("scroll", syncBackgroundState);
-      window.removeEventListener("resize", syncBackgroundState);
     };
   }, [authorized]);
 
@@ -1239,10 +1279,7 @@ function TransferAppContent({
     };
   }, [authorized, currentHeroIdentity, images, updateHeroImage]);
 
-  async function handleLogin(
-    password: string,
-    options: { liteMode: boolean },
-  ) {
+  async function handleLogin(password: string, options: { liteMode: boolean }) {
     setAuthNotice("");
     try {
       const response = await fetch("/api/auth/login", {
@@ -1561,7 +1598,7 @@ function TransferAppContent({
 
   return (
     <main className="relative min-h-dvh overflow-x-hidden bg-[#050505] text-white">
-      <header className="relative z-40 bg-[#050505] px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:contents sm:bg-transparent sm:p-0">
+      <header className="relative z-40 bg-[#050505] px-2 pb-3 pt-[calc(0.6rem+env(safe-area-inset-top,0))] sm:contents sm:bg-transparent sm:p-0">
         <div className="flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
           <div className="flex min-w-0 items-center gap-2 sm:contents">
             <StorageSourceSelect
@@ -1629,7 +1666,7 @@ function TransferAppContent({
       </header>
 
       <section
-        className={`relative z-30 flex overflow-hidden rounded-t-[32px] shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
+        className={`relative z-30 flex overflow-hidden rounded-t-4xl shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
           uploadQueueVisible
             ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
             : "h-dvh"
