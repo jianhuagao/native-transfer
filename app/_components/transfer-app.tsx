@@ -21,6 +21,7 @@ import {
   ArrowPathIcon,
   ArrowsRightLeftIcon,
   CheckIcon,
+  ChevronDoubleDownIcon,
   CircleStackIcon,
   DevicePhoneMobileIcon,
   LinkIcon,
@@ -824,11 +825,7 @@ const MediaShelf = memo(function MediaShelf({
   }, [historyLoading, images.length]);
 
   return (
-    <section className="relative z-30 px-3 pb-14 sm:px-6 sm:pb-20 lg:px-10">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-136 h-184 bg-[linear-gradient(180deg,rgba(5,5,5,0)_0%,rgba(5,5,5,0.06)_24%,rgba(5,5,5,0.22)_48%,rgba(5,5,5,0.58)_72%,rgba(5,5,5,0.9)_90%,#050505_100%)] sm:hidden"
-      />
+    <section className="relative z-50 -mt-14 px-3 pb-14 sm:z-30 sm:mt-0 sm:px-6 sm:pb-20 lg:px-10">
       <div
         className="relative z-10 mx-auto max-w-420"
         style={{ marginTop: initialTopOffset }}
@@ -990,7 +987,6 @@ function HeroBackdrop({
           blurred ? "bg-black/38 backdrop-blur-md" : "bg-black/0"
         }`}
       />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.16)_0%,rgba(0,0,0,0.04)_32%,rgba(5,5,5,0.18)_52%,rgba(5,5,5,0.52)_76%,#050505_100%)] sm:hidden" />
       <div className="absolute inset-0 hidden bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.02)_44%,rgba(0,0,0,0.72)_100%)] sm:block" />
     </div>
   );
@@ -1668,8 +1664,8 @@ function TransferAppContent({
       <section
         className={`relative z-30 flex overflow-hidden rounded-t-4xl shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
           uploadQueueVisible
-            ? "min-h-[calc(100svh+22rem)] sm:min-h-0 sm:h-dvh"
-            : "h-svh sm:h-dvh"
+            ? "min-h-[calc(100svh+12rem)] sm:min-h-0 sm:h-dvh"
+            : "h-[calc(100svh-10rem)] min-h-[30rem] sm:h-dvh"
         }`}
       >
         <HeroBackdrop
@@ -1697,6 +1693,12 @@ function TransferAppContent({
               </p>
             ) : null}
           </div>
+        </div>
+        <div
+          aria-hidden
+          className="nt-scroll-cue pointer-events-none absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-1/2 z-30 flex size-11 items-center justify-center rounded-full border border-white/34 bg-black/18 text-white/84 shadow-[0_12px_30px_rgba(0,0,0,0.34)] ring-1 ring-white/10 backdrop-blur-xl sm:hidden"
+        >
+          <ChevronDoubleDownIcon className="size-5.5 drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]" />
         </div>
       </section>
 

@@ -54,6 +54,30 @@ img {
   color: white;
 }
 
+.nt-scroll-cue {
+  animation: nt-scroll-cue-bounce 2.4s ease-in-out infinite;
+  transform: translate3d(-50%, 0, 0);
+}
+
+@keyframes nt-scroll-cue-bounce {
+  0%,
+  100% {
+    opacity: 0.94;
+    transform: translate3d(-50%, 0, 0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate3d(-50%, 0.55rem, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nt-scroll-cue {
+    animation: none;
+  }
+}
+
 html {
   font-size: clamp(12px, 0.833333vw, 20px);
   -webkit-text-size-adjust: 100%;
