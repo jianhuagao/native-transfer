@@ -1597,9 +1597,9 @@ function TransferAppContent({
   }
 
   return (
-    <main className="relative min-h-dvh overflow-x-hidden bg-[#050505] text-white">
+    <main className="relative min-h-svh overflow-x-hidden bg-[#050505] text-white sm:min-h-dvh">
       <header className="relative z-40 bg-[#050505] px-2 pb-3 pt-[calc(0.6rem+env(safe-area-inset-top,0))] sm:contents sm:bg-transparent sm:p-0">
-        <div className="flex max-w-[calc(100vw-2rem)] flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:max-w-none sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
+        <div className="flex w-full max-w-none flex-col gap-2 rounded-3xl border border-white/14 bg-white/8 p-1.5 shadow-[0_16px_46px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:fixed sm:right-6 sm:top-6 sm:z-40 sm:w-auto sm:max-w-full sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:bg-black/28">
           <div className="flex min-w-0 items-center gap-2 sm:contents">
             <StorageSourceSelect
               activeSourceId={activeSourceId}
@@ -1668,8 +1668,8 @@ function TransferAppContent({
       <section
         className={`relative z-30 flex overflow-hidden rounded-t-4xl shadow-[0_-18px_60px_rgba(0,0,0,0.34)] transition-[height,min-height] duration-300 sm:z-10 sm:rounded-none sm:shadow-none ${
           uploadQueueVisible
-            ? "min-h-[calc(100dvh+22rem)] sm:min-h-0 sm:h-dvh"
-            : "h-dvh"
+            ? "min-h-[calc(100svh+22rem)] sm:min-h-0 sm:h-dvh"
+            : "h-svh sm:h-dvh"
         }`}
       >
         <HeroBackdrop
@@ -1680,7 +1680,7 @@ function TransferAppContent({
           previousHero={heroBackdrop.previous}
         />
         <div className="relative z-20 flex w-full flex-col px-5 pb-56 pt-24 sm:px-8 sm:pb-64 sm:pt-28 lg:px-14">
-          <div className="max-w-xl pt-[16vh] sm:pt-[10vh]">
+          <div className="max-w-xl pt-[16svh] sm:pt-[10vh]">
             <h1 className={PAGE_TITLE_CLASS}>{DEFAULT_PAGE_TITLE}</h1>
             <div className="relative z-40 mt-14">
               <TransferUploadPanel

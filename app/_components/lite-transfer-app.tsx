@@ -206,10 +206,7 @@ function LiteTransferAppContent({
     });
   }, [applyImagesPayload]);
 
-  async function handleLogin(
-    password: string,
-    options: { liteMode: boolean },
-  ) {
+  async function handleLogin(password: string, options: { liteMode: boolean }) {
     setAuthNotice("");
 
     try {
@@ -511,11 +508,7 @@ function LiteTransferAppContent({
 
   if (!authorized) {
     return (
-      <LoginScreen
-        defaultLiteMode
-        notice={authNotice}
-        onLogin={handleLogin}
-      />
+      <LoginScreen defaultLiteMode notice={authNotice} onLogin={handleLogin} />
     );
   }
 
@@ -591,7 +584,7 @@ function LiteTransferAppContent({
       </header>
 
       <div className="mx-auto grid max-w-5xl gap-3 px-3 py-3 lg:grid-cols-[22rem_minmax(0,1fr)]">
-        <section className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+        <section className="rounded-lg border border-white/10 bg-white/4 p-3">
           <TransferUploadPanel
             helperText="多选、拖拽或粘贴上传"
             onUploaded={refreshImages}
@@ -603,7 +596,7 @@ function LiteTransferAppContent({
           />
         </section>
 
-        <section className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04]">
+        <section className="min-w-0 rounded-lg border border-white/10 bg-white/4">
           <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
             <h1 className="text-sm font-semibold text-white/88">图片列表</h1>
             <span className="text-xs text-white/45">{images.length} 项</span>
@@ -639,14 +632,14 @@ function LiteTransferAppContent({
                       setSelectedImage(image);
                     }
                   }}
-                  className={`grid w-full gap-3 px-3 py-2.5 text-left transition hover:bg-white/[0.06] ${
+                  className={`grid w-full gap-3 px-3 py-2.5 text-left transition hover:bg-white/6 ${
                     rowPreviewsVisible
                       ? "grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[2.75rem_minmax(0,1fr)_8rem_auto]"
                       : "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_8rem_auto]"
                   }`}
                 >
                   {rowPreviewsVisible ? (
-                    <span className="relative size-10 self-center overflow-hidden rounded-md border border-white/10 bg-white/[0.04] sm:size-11">
+                    <span className="relative size-10 self-center overflow-hidden rounded-md border border-white/10 bg-white/4 sm:size-11">
                       {image.mediaType === "image" ? (
                         <Image
                           src={image.thumbnailUrl ?? image.url}
